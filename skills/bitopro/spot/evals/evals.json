@@ -1,0 +1,73 @@
+{
+  "skill_name": "spot",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "What is the current price of BTC/TWD on BitoPro?",
+      "expected_output": "The agent constructs a GET request to /tickers/btc_twd and returns the latest price data.",
+      "expectations": [
+        "The agent uses the get_tickers tool",
+        "The request URL includes /tickers/btc_twd",
+        "The trading pair is lowercase with underscore: btc_twd",
+        "No authentication headers are included (public endpoint)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Show me the order book for ETH/TWD with 10 levels of depth.",
+      "expected_output": "The agent constructs a GET request to /order-book/eth_twd with limit=10.",
+      "expectations": [
+        "The agent uses the get_order_book tool",
+        "The request URL includes /order-book/eth_twd",
+        "The limit parameter is set to 10",
+        "The trading pair is lowercase with underscore: eth_twd"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Get hourly candlestick data for BTC/TWD from the last 24 hours.",
+      "expected_output": "The agent constructs a GET request to /trading-history/btc_twd with resolution=1h and appropriate from/to timestamps in seconds.",
+      "expectations": [
+        "The agent uses the get_candlesticks tool",
+        "The request URL includes /trading-history/btc_twd",
+        "The resolution parameter is set to 1h",
+        "The from and to parameters are Unix timestamps in seconds (not milliseconds)"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Check my account balance on BitoPro.",
+      "expected_output": "The agent constructs an authenticated GET request to /accounts/balance with proper HMAC-SHA384 signing.",
+      "expectations": [
+        "The agent uses the get_account_balance tool",
+        "The agent mentions that BITOPRO_API_KEY, BITOPRO_API_SECRET, and BITOPRO_EMAIL are required",
+        "The payload includes identity (email) and nonce fields",
+        "The signing algorithm is HMAC-SHA384",
+        "Three headers are included: X-BITOPRO-APIKEY, X-BITOPRO-PAYLOAD, X-BITOPRO-SIGNATURE"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Place a limit buy order for 0.001 BTC at 2,800,000 TWD on BitoPro.",
+      "expected_output": "The agent asks for user confirmation before placing the order, then constructs an authenticated POST request to /orders/btc_twd.",
+      "expectations": [
+        "The agent confirms the order details with the user before executing",
+        "The agent uses the create_order tool",
+        "The request is a POST to /orders/btc_twd",
+        "The signing payload includes request body parameters plus nonce, but NOT identity",
+        "The X-BITOPRO-PAYLOAD header is included for POST requests"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Cancel order 1234567890 for BTC/TWD on BitoPro.",
+      "expected_output": "The agent constructs an authenticated DELETE request to /orders/btc_twd/1234567890 with all three auth headers.",
+      "expectations": [
+        "The agent uses the cancel_order tool",
+        "The request is a DELETE to /orders/btc_twd/1234567890",
+        "The signing payload uses identity + nonce (same as GET)",
+        "All three auth headers are included: X-BITOPRO-APIKEY, X-BITOPRO-PAYLOAD, X-BITOPRO-SIGNATURE"
+      ]
+    }
+  ]
+}
