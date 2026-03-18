@@ -1,0 +1,106 @@
+{
+  "skill_name": "ai-trade",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "買一萬塊比特幣",
+      "expected_output": "Agent parses intent as BUY BTC with 10,000 TWD, validates against 10,000 TWD limit (passes), confirms with user, then executes a MARKET BUY order on btc_twd.",
+      "expectations": [
+        "Agent correctly identifies action=buy, currency=BTC, amount=10000, amount_type=fiat",
+        "Agent validates 10000 TWD <= 10000 limit and allows the order",
+        "Agent confirms order details with the user before executing",
+        "Agent uses MARKET order type (not LIMIT)",
+        "Request is POST to /orders/btc_twd with amount='10000' and type='MARKET'",
+        "For MARKET BUY, amount is in quote currency (TWD), not base currency"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "我想買點以太幣",
+      "expected_output": "Agent identifies buy intent for ETH but recognizes the amount is missing, asks user for clarification.",
+      "expectations": [
+        "Agent correctly identifies action=buy, currency=ETH",
+        "Agent recognizes that amount is missing",
+        "Agent asks user for the amount (e.g., '請問您想用多少金額買入以太幣？')",
+        "Agent does NOT proceed to execute without the amount"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "賣掉我所有的 ETH",
+      "balances": { "ETH": 1.2 },
+      "expected_output": "Agent identifies sell-all intent, checks balance to compute quantity (1.2 ETH), then checks market price to validate TWD value against 10,000 limit.",
+      "expectations": [
+        "Agent correctly identifies action=sell, currency=ETH, amount_type=percentage (100%)",
+        "Agent calls get_account_balance to determine ETH available balance",
+        "Agent calls get_market_price to compute TWD equivalent",
+        "Agent validates the total TWD value against the 10,000 TWD limit",
+        "If TWD value exceeds 10,000, agent rejects the order with an explanation",
+        "For MARKET SELL, amount is in base currency (ETH quantity), not TWD"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "用 100 台幣買 BTC，再用 200 台幣買 ETH",
+      "expected_output": "Agent parses two separate orders, validates each against the limit, confirms both with user, then executes sequentially.",
+      "expectations": [
+        "Agent identifies two separate orders from the single input",
+        "Order 1: action=buy, currency=BTC, amount=100 TWD",
+        "Order 2: action=buy, currency=ETH, amount=200 TWD",
+        "Agent validates each order independently (both under 10,000 TWD)",
+        "Agent confirms all orders together with the user",
+        "Agent executes orders sequentially via POST /orders/{pair}"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "用兩萬塊買比特幣",
+      "expected_output": "Agent parses intent as BUY BTC with 20,000 TWD, validates against limit, and REJECTS the order because it exceeds 10,000 TWD.",
+      "expectations": [
+        "Agent correctly parses 兩萬 as 20000",
+        "Agent identifies action=buy, currency=BTC, amount=20000 TWD",
+        "Agent detects that 20000 > 10000 TWD limit",
+        "Agent REJECTS the order with a clear error message about the 10,000 TWD limit",
+        "Agent does NOT execute the order",
+        "Agent suggests reducing the amount"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "買 0.003 顆比特幣",
+      "expected_output": "Agent parses crypto quantity buy, fetches current BTC price to convert to TWD, validates against limit, and if under 10,000 TWD, confirms and executes.",
+      "expectations": [
+        "Agent correctly identifies action=buy, currency=BTC, amount_type=quantity, amount=0.003",
+        "Agent calls get_market_price to get current BTC/TWD price",
+        "Agent computes TWD equivalent (0.003 × lastPrice) and checks against 10,000 limit",
+        "Agent converts crypto quantity to TWD amount for MARKET BUY order",
+        "Agent confirms with estimated TWD value before executing",
+        "For MARKET BUY, the amount sent to API is in TWD, not BTC"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Check my account balance on BitoPro",
+      "expected_output": "Agent constructs an authenticated GET request to /accounts/balance with proper HMAC-SHA384 signing.",
+      "expectations": [
+        "Agent uses the get_account_balance tool",
+        "Agent mentions that BITOPRO_API_KEY, BITOPRO_API_SECRET, and BITOPRO_EMAIL are required",
+        "The payload includes identity (email) and nonce fields",
+        "The signing algorithm is HMAC-SHA384",
+        "Three headers are included: X-BITOPRO-APIKEY, X-BITOPRO-PAYLOAD, X-BITOPRO-SIGNATURE"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Buy $5000 TWD worth of ETH",
+      "expected_output": "Agent parses English input correctly, validates 5000 TWD is under the 10,000 limit, confirms and executes MARKET BUY.",
+      "expectations": [
+        "Agent correctly parses English input",
+        "Agent identifies action=buy, currency=ETH, amount=5000, amount_type=fiat",
+        "Agent validates 5000 TWD <= 10000 limit",
+        "Agent confirms order details with the user",
+        "Agent executes MARKET BUY on eth_twd with amount='5000'"
+      ]
+    }
+  ]
+}
