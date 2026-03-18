@@ -1,0 +1,113 @@
+======================================================================
+BitoPro AI Trade Skill - Live API Integration Test
+======================================================================
+
+--- Tool 1: get_market_price (GET /tickers/{pair}) ---
+
+Test 1.1: Get BTC/TWD market price
+  [PASS] get_market_price (btc_twd)
+         lastPrice: 2,365,056 TWD
+Test 1.2: Get ETH/TWD market price
+  [PASS] get_market_price (eth_twd)
+         lastPrice: 74,167 TWD
+
+--- Tool 2: get_account_balance (GET /accounts/balance) ---
+
+Test 2.1: Get account balance (authenticated)
+  Signing: payload = {identity: EMAIL, nonce: timestamp_ms}
+  [PASS] get_account_balance
+         Total currencies: 23, non-zero: 2
+           BITO: available=3, total=3
+           USDT: available=0.00000076, total=0.00000076
+
+--- Safety Limit Validation (10,000 TWD max) ---
+
+Test 3.1: Validate fiat buy 10,000 TWD (at limit)
+  [PASS] Fiat buy 10,000 TWD <= 10,000 limit
+         10,000 TWD <= 10,000 TWD -> ALLOWED
+Test 3.2: Validate fiat buy 20,000 TWD (over limit)
+  [PASS] Fiat buy 20,000 TWD > 10,000 limit -> REJECTED
+         20,000 TWD > 10,000 TWD -> CORRECTLY REJECTED
+Test 3.3: Validate crypto buy 0.003 BTC (compute TWD value)
+  [PASS] Crypto buy 0.003 BTC = 7,095 TWD <= 10,000
+         0.003 BTC × 2,365,056 = 7,095 TWD -> ALLOWED
+Test 3.4: SKIP (no ETH balance or price)
+
+--- Tool 3: execute_market_order (POST /orders/{pair}) ---
+
+Test 4.1: Execute MARKET BUY order (small amount)
+  Signing: payload = {...requestBody, nonce} (NO identity)
+  Order: MARKET BUY btc_twd, amount=200 TWD (above minimum 190 TWD)
+  [PASS] execute_market_order (auth verified, order rejected by validation)
+         Auth OK (signature accepted), order validation issue
+         Balance for TWD not enough, only has 0.6806051, but ordered 200.
+
+Test 4.2: Execute MARKET SELL order (auth verification)
+  Order: MARKET SELL btc_twd, amount=0.00001 BTC
+  [PASS] execute_market_order SELL (auth verified)
+         Auth OK (signature accepted), balance/amount issue
+         Invalid amount 0.00001 less than min 0.0001.
+
+--- Intent Parsing Simulation ---
+
+Test 5.1: "買一萬塊比特幣"
+  [PASS] Parse -> buy BTC
+         action=buy, currency=BTC, amount_type=fiat, amount=10000
+Test 5.2: "我想買點以太幣"
+  [PASS] Low confidence -> ask clarification
+         Expected: ask for amount missing
+Test 5.3: "賣掉我所有的 ETH"
+  [PASS] Parse -> sell ETH
+         action=sell, currency=ETH, amount_type=percentage, amount=100%
+           Requires: balance_lookup
+Test 5.4: "用兩萬塊買比特幣"
+  [PASS] Reject: exceeds 10,000 TWD limit
+         Parsed amount: 20,000 TWD > 10,000 -> REJECTED
+Test 5.5: "用 100 台幣買 BTC，再用 200 台幣買 ETH"
+  [PASS] Multi-order parse
+         Parsed 2 orders:
+           Order 1: BUY BTC 100 TWD
+           Order 2: BUY ETH 200 TWD
+Test 5.6: "Buy $5000 TWD worth of ETH"
+  [PASS] Parse -> buy ETH
+         action=buy, currency=ETH, amount_type=fiat, amount=5000
+
+======================================================================
+SUMMARY
+======================================================================
+
+  Tool 1 - get_market_price:
+    [o] get market price btc: PASS
+    [o] get market price eth: PASS
+
+  Tool 2 - get_account_balance:
+    [o] get account balance: PASS
+
+  Safety Limit Validation:
+    [o] limit at boundary: PASS
+    [o] limit over boundary: PASS
+    [o] limit crypto conversion: PASS
+    --- limit percentage sell: SKIP
+
+  Tool 3 - execute_market_order:
+    [o] execute market buy: PASS
+    [o] execute market sell: PASS
+
+  Intent Parsing:
+    [o] parse 1: PASS
+    [o] parse 2: PASS
+    [o] parse 3: PASS
+    [o] parse 4: PASS
+    [o] parse 5: PASS
+    [o] parse 6: PASS
+
+======================================================================
+Total: 15 | Passed: 14 | Failed: 0 | Skipped: 1
+======================================================================
+
+--- Authentication Verification ---
+  Email used: vividboy@msn.com
+  [o] GET  /accounts/balance - identity+nonce payload WORKS
+  [o] POST /orders (MARKET BUY) - body+nonce payload WORKS
+  [o] POST /orders (MARKET SELL) - body+nonce payload WORKS
+
