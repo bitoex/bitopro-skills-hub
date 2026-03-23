@@ -1,6 +1,6 @@
 ---
 name: ai-trade
-description: AI-powered natural language trading for BitoPro. Parses voice/text trading commands in Chinese or English, validates safety limits (10,000 TWD max per order), and executes via BitoPro spot market API using market orders. Authentication requires API key, secret key, and registered email.
+description: Use when user wants to execute cryptocurrency trades on BitoPro using natural language commands (Chinese or English). Validates all orders against 10,000 TWD safety limit before execution. Parses trading intents, checks balances, and executes market orders via BitoPro API.
 metadata:
   version: 1.0.0
   author: bitopro-community
