@@ -1,6 +1,6 @@
 ---
 name: spot
-description: BitoPro Spot trading using the BitoPro API. Authentication requires API key, secret key, and registered email. Supports market data queries and order management for TWD trading pairs.
+description: Use when user needs to trade cryptocurrencies on BitoPro exchange, check market data, manage orders, or view account balances. Supports both public (market data) and private (trading) operations via BitoPro API. Covers 9 endpoints including tickers, order books, trades, candlesticks, balances, and order management.
 metadata:
   version: 1.0.0
   author: bitopro-community

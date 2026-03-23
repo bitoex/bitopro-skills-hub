@@ -163,51 +163,51 @@ print(resp.json())
 package bitopro
 
 import (
-	"crypto/hmac"
-	"crypto/sha512"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
-	"net/http"
-	"time"
+    "crypto/hmac"
+    "crypto/sha512"
+    "encoding/base64"
+    "encoding/hex"
+    "encoding/json"
+    "net/http"
+    "time"
 )
 
 // BuildHeaders creates authenticated headers for BitoPro API.
 func BuildHeaders(method, apiKey, apiSecret, email string, body map[string]interface{}) http.Header {
-	nonce := time.Now().UnixMilli()
+    nonce := time.Now().UnixMilli()
 
-	var payloadObj map[string]interface{}
+    var payloadObj map[string]interface{}
 
-	if method == http.MethodGet || method == http.MethodDelete {
-		// GET/DELETE: identity + nonce
-		payloadObj = map[string]interface{}{
-			"identity": email,
-			"nonce":    nonce,
-		}
-	} else {
-		// POST/PUT: actual body + nonce
-		payloadObj = make(map[string]interface{})
-		for k, v := range body {
-			payloadObj[k] = v
-		}
-		payloadObj["nonce"] = nonce
-	}
+    if method == http.MethodGet || method == http.MethodDelete {
+        // GET/DELETE: identity + nonce
+        payloadObj = map[string]interface{}{
+            "identity": email,
+            "nonce":    nonce,
+        }
+    } else {
+        // POST/PUT: actual body + nonce
+        payloadObj = make(map[string]interface{})
+        for k, v := range body {
+            payloadObj[k] = v
+        }
+        payloadObj["nonce"] = nonce
+    }
 
-	payloadJSON, _ := json.Marshal(payloadObj)
-	encodedPayload := base64.StdEncoding.EncodeToString(payloadJSON)
+    payloadJSON, _ := json.Marshal(payloadObj)
+    encodedPayload := base64.StdEncoding.EncodeToString(payloadJSON)
 
-	mac := hmac.New(sha512.New384, []byte(apiSecret))
-	mac.Write([]byte(encodedPayload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+    mac := hmac.New(sha512.New384, []byte(apiSecret))
+    mac.Write([]byte(encodedPayload))
+    signature := hex.EncodeToString(mac.Sum(nil))
 
-	headers := http.Header{}
-	headers.Set("X-BITOPRO-APIKEY", apiKey)
-	headers.Set("X-BITOPRO-SIGNATURE", signature)
-	headers.Set("Content-Type", "application/json")
+    headers := http.Header{}
+    headers.Set("X-BITOPRO-APIKEY", apiKey)
+    headers.Set("X-BITOPRO-SIGNATURE", signature)
+    headers.Set("Content-Type", "application/json")
 
-	headers.Set("X-BITOPRO-PAYLOAD", encodedPayload)
+    headers.Set("X-BITOPRO-PAYLOAD", encodedPayload)
 
-	return headers
+    return headers
 }
 ```
 
@@ -217,32 +217,32 @@ func BuildHeaders(method, apiKey, apiSecret, email string, body map[string]inter
 package main
 
 import (
-	"fmt"
-	"io"
-	"net/http"
+    "fmt"
+    "io"
+    "net/http"
 )
 
 func main() {
-	apiKey := "your_api_key"
-	apiSecret := "your_api_secret"
-	email := "your@email.com"
-	baseURL := "https://api.bitopro.com/v3"
+    apiKey := "your_api_key"
+    apiSecret := "your_api_secret"
+    email := "your@email.com"
+    baseURL := "https://api.bitopro.com/v3"
 
-	// GET: query account balance
-	headers := BuildHeaders(http.MethodGet, apiKey, apiSecret, email, nil)
-	req, _ := http.NewRequest("GET", baseURL+"/accounts/balance", nil)
-	req.Header = headers
-	resp, _ := http.DefaultClient.Do(req)
-	body, _ := io.ReadAll(resp.Body)
-	fmt.Println(string(body))
+    // GET: query account balance
+    headers := BuildHeaders(http.MethodGet, apiKey, apiSecret, email, nil)
+    req, _ := http.NewRequest("GET", baseURL+"/accounts/balance", nil)
+    req.Header = headers
+    resp, _ := http.DefaultClient.Do(req)
+    body, _ := io.ReadAll(resp.Body)
+    fmt.Println(string(body))
 
-	// DELETE: cancel an order
-	headers = BuildHeaders(http.MethodDelete, apiKey, apiSecret, email, nil)
-	req, _ = http.NewRequest("DELETE", baseURL+"/orders/btc_twd/1234567890", nil)
-	req.Header = headers
-	resp, _ = http.DefaultClient.Do(req)
-	body, _ = io.ReadAll(resp.Body)
-	fmt.Println(string(body))
+    // DELETE: cancel an order
+    headers = BuildHeaders(http.MethodDelete, apiKey, apiSecret, email, nil)
+    req, _ = http.NewRequest("DELETE", baseURL+"/orders/btc_twd/1234567890", nil)
+    req.Header = headers
+    resp, _ = http.DefaultClient.Do(req)
+    body, _ = io.ReadAll(resp.Body)
+    fmt.Println(string(body))
 }
 ```
 
