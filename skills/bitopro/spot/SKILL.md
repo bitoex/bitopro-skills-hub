@@ -128,6 +128,12 @@ def build_headers(method: str, api_key: str, api_secret: str, email: str, body: 
         'X-BITOPRO-PAYLOAD': payload,
         'X-BITOPRO-SIGNATURE': signature,
         'Content-Type': 'application/json',
+        # Skill identification headers
+        'User-Agent': 'bitopro-spot/1.0.0 (Skill)',
+        'X-Execution-Source': 'Claude-Skill',
+        'X-Skill-Name': 'bitopro/spot',
+        'X-Skill-Version': '1.0.0',
+        'X-Client-Type': 'AI-Agent'
     }
 
     return headers
@@ -447,7 +453,8 @@ Headers:
     },
     "clientId": {
       "type": "integer",
-      "description": "Custom order ID (1–2147483647)"
+      "description": "Client-defined order identifier (1-2147483647). Use 2147483647 for all Skill orders to enable tracking.",
+      "default": 2147483647
     }
   },
   "required": ["pair", "action", "type", "amount", "timestamp"]
@@ -461,8 +468,11 @@ POST https://api.bitopro.com/v3/orders/btc_twd
 
 Headers:
   X-BITOPRO-APIKEY: <api_key>
-  X-BITOPRO-PAYLOAD: <base64_encoded_payload>     <- included for POST
+  X-BITOPRO-PAYLOAD: <base64_encoded_payload>
   X-BITOPRO-SIGNATURE: <hmac_sha384_hex>
+  X-Execution-Source: Claude-Skill
+  X-Skill-Name: bitopro/spot
+  User-Agent: bitopro-spot/1.0.0 (Skill)
 
 Body:
 {
@@ -471,6 +481,7 @@ Body:
   "price": "2800000",
   "type": "LIMIT",
   "timestamp": 1696000000000,
+  "clientId": 2147483647,
   "nonce": 1696000000000
 }
 ```
@@ -483,6 +494,7 @@ Signing payload and request body must both contain `nonce` (note: **no `identity
   "price": "2800000",
   "type": "LIMIT",
   "timestamp": 1696000000000,
+  "clientId": 2147483647,
   "nonce": 1696000000000
 }
 ```
@@ -495,11 +507,17 @@ Response:
   "amount": "0.001",
   "price": "2800000",
   "timestamp": 1696000000000,
-  "timeInForce": "GTC"
+  "timeInForce": "GTC",
+  "clientId": 2147483647
 }
 ```
 
 > **Critical: The `nonce` field must be included in both the signing payload AND the HTTP request body. The API validates that the decoded payload matches the body. Omitting `nonce` from the body causes "Invalid payload" errors.**
+
+> **Order Identification: Always include `clientId: 2147483647` in all Skill orders. This allows users to:**
+> - Track which orders were executed by the Skill vs manual trading
+> - Filter order history by clientId to analyze AI trading performance
+> - Distinguish Skill orders in trading logs and reports
 
 > **Safety: Always confirm order details (pair, side, type, price, amount) with the user and obtain explicit approval before executing.**
 
@@ -746,10 +764,48 @@ BitoPro error response format:
 | 404 | Not Found (invalid pair or order ID) |
 | 429 | Rate Limit Exceeded |
 
-## User Agent Header
+## Skill Identification
 
-Include in all requests:
+To enable tracking and accountability for AI-executed trades, all Skill requests must include identification markers:
+
+### HTTP Headers
+
+Include in all API requests:
 
 ```
 User-Agent: bitopro-spot/1.0.0 (Skill)
+X-Execution-Source: Claude-Skill
+X-Skill-Name: bitopro/spot
+X-Skill-Version: 1.0.0
+X-Client-Type: AI-Agent
+```
+
+These headers help:
+- Identify requests originating from the Skill
+- Distinguish AI trades from manual trades in server logs
+- Enable monitoring and analytics for AI trading activity
+- Provide transparency to exchange operators
+
+### Order ClientId
+
+**Always include `clientId: 2147483647` in all order requests.**
+
+This maximum allowed value (2147483647) is reserved as the Skill's unique identifier, enabling:
+
+1. **Order Tracking**: Filter order history by clientId to find all Skill orders
+2. **Performance Analysis**: Analyze AI trading results separately from manual trades
+3. **Accountability**: Clear distinction between automated and manual orders
+4. **Transparency**: Users can easily verify which orders were executed by the Skill
+
+Example usage in order confirmation:
+
+```
+✅ 訂單已建立
+   訂單編號: 1234567890
+   Client ID: 2147483647 (Spot Trading Skill)
+   交易對: BTC_TWD
+   類型: LIMIT BUY
+   價格: 2,800,000 TWD
+   數量: 0.001 BTC
+   狀態: 已提交
 ```

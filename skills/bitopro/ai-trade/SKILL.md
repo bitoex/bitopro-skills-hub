@@ -308,6 +308,11 @@ Headers:
     "timestamp": {
       "type": "integer",
       "description": "Current timestamp in milliseconds"
+    },
+    "clientId": {
+      "type": "integer",
+      "description": "Client-defined order identifier (1-2147483647). Use 2147483647 for all Skill orders to enable tracking.",
+      "default": 2147483647
     }
   },
   "required": ["pair", "action", "amount", "timestamp"]
@@ -323,6 +328,9 @@ Headers:
   X-BITOPRO-APIKEY: <api_key>
   X-BITOPRO-PAYLOAD: <base64_encoded_payload>
   X-BITOPRO-SIGNATURE: <hmac_sha384_hex>
+  X-Execution-Source: Claude-Skill
+  X-Skill-Name: bitopro/ai-trade
+  User-Agent: bitopro-ai-trade/1.0.0 (Skill)
 
 Body:
 {
@@ -330,11 +338,13 @@ Body:
   "amount": "10000",
   "type": "MARKET",
   "timestamp": 1696000000000,
+  "clientId": 2147483647,
   "nonce": 1696000000000
 }
 ```
 
 > For MARKET BUY, `amount` = TWD to spend. (e.g., "10000" means spend 10,000 TWD to buy BTC)
+> `clientId` = 2147483647 is reserved for all Skill orders (enables tracking and filtering)
 
 **MARKET SELL example (sell ETH to receive TWD):**
 
@@ -347,11 +357,13 @@ Body:
   "amount": "1.2",
   "type": "MARKET",
   "timestamp": 1696000000000,
+  "clientId": 2147483647,
   "nonce": 1696000000000
 }
 ```
 
 > For MARKET SELL, `amount` = crypto quantity to sell. (e.g., "1.2" means sell 1.2 ETH)
+> `clientId` = 2147483647 identifies this as a Skill order
 
 **Response:**
 
@@ -362,11 +374,18 @@ Body:
   "amount": "10000",
   "price": "0",
   "timestamp": 1696000000000,
-  "timeInForce": "GTC"
+  "timeInForce": "GTC",
+  "clientId": 2147483647
 }
 ```
 
 > **Critical: The `nonce` field must be included in both the signing payload AND the HTTP request body. The `type` field must be set to `"MARKET"`. No `price` field is needed for market orders.**
+>
+> **Order Identification: Always include `clientId: 2147483647` in all Skill orders. This allows users to:**
+> - Track which orders were executed by the Skill vs manual trading
+> - Filter order history by clientId to analyze AI trading performance
+> - Distinguish Skill orders in trading logs and reports
+> - Provide accountability and transparency for automated trades
 
 ---
 
@@ -563,10 +582,45 @@ BitoPro error response format:
 | 422 | Insufficient balance | Show current balance, suggest lower amount |
 | 429 | Rate Limit Exceeded | Wait and retry |
 
-## User Agent Header
+## Skill Identification
 
-Include in all requests:
+To enable tracking and accountability for AI-executed trades, all Skill requests must include identification markers:
+
+### HTTP Headers
+
+Include in all API requests:
 
 ```
 User-Agent: bitopro-ai-trade/1.0.0 (Skill)
+X-Execution-Source: Claude-Skill
+X-Skill-Name: bitopro/ai-trade
+X-Skill-Version: 1.0.0
+X-Client-Type: AI-Agent
+```
+
+These headers help:
+- Identify requests originating from the Skill
+- Distinguish AI trades from manual trades in server logs
+- Enable monitoring and analytics for AI trading activity
+- Provide transparency to exchange operators
+
+### Order ClientId
+
+**Always include `clientId: 2147483647` in all order requests.**
+
+This maximum allowed value (2147483647) is reserved as the Skill's unique identifier, enabling:
+
+1. **Order Tracking**: Filter order history by clientId to find all Skill orders
+2. **Performance Analysis**: Analyze AI trading results separately from manual trades
+3. **Accountability**: Clear distinction between automated and manual orders
+4. **Transparency**: Users can easily verify which orders were executed by the Skill
+
+Example usage in order confirmation:
+
+```
+✅ 訂單已執行
+   訂單編號: 7027856137
+   Client ID: 2147483647 (AI Trade Skill)
+   金額: 200 TWD
+   狀態: 已完成
 ```
