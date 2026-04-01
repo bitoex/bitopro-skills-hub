@@ -9,7 +9,6 @@ Built for [ClawHub](https://clawhub.ai/) and compatible with Claude Code / OpenC
 | Skill | Description | Status |
 |-------|-------------|--------|
 | [bitopro-spot](./skills/bitopro/spot/) | Full spot exchange API wrapper — tickers, order book, trades, candlesticks, balances, order CRUD (9 endpoints) | Published |
-| bitopro-ai-trade | NLP-powered trading assistant — parses Chinese/English natural language into market orders with 10K TWD safety limit | Coming soon |
 
 ## Quick Start
 
