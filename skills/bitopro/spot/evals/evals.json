@@ -68,6 +68,107 @@
         "The signing payload uses identity + nonce (same as GET)",
         "All three auth headers are included: X-BITOPRO-APIKEY, X-BITOPRO-PAYLOAD, X-BITOPRO-SIGNATURE"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "What trading pairs are available on BitoPro?",
+      "expected_output": "The agent constructs a GET request to /provisioning/trading-pairs and returns the list of available pairs.",
+      "expectations": [
+        "The agent uses the get_trading_pairs tool",
+        "The request URL includes /provisioning/trading-pairs",
+        "No authentication headers are included (public endpoint)",
+        "The response includes pair info like minLimitBaseAmount, quotePrecision, maintain status"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "What are the withdrawal fees and limits for USDT on BitoPro?",
+      "expected_output": "The agent queries currency info or limitations-and-fees to show USDT withdrawal fees and limits.",
+      "expectations": [
+        "The agent uses get_currencies or get_limitations_and_fees tool",
+        "The request URL includes /provisioning/currencies or /provisioning/limitations-and-fees",
+        "No authentication headers are included (public endpoint)",
+        "The response shows withdrawal fee, min/max amounts per protocol"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "What is the current OTC price for BTC in TWD?",
+      "expected_output": "The agent constructs a GET request to /price/otc/btc and returns buy and sell exchange rates.",
+      "expectations": [
+        "The agent uses the get_otc_price tool",
+        "The request URL includes /price/otc/btc",
+        "No authentication headers are included (public endpoint)",
+        "The response shows both buySwapQuotation and sellSwapQuotation exchange rates"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Place 3 limit buy orders for BTC/TWD at different prices: 2,700,000, 2,750,000, and 2,800,000 TWD, each for 0.001 BTC.",
+      "expected_output": "The agent asks for user confirmation, then constructs an authenticated POST request to /orders/batch with 3 order objects.",
+      "expectations": [
+        "The agent confirms all order details with the user before executing",
+        "The agent uses the create_batch_orders tool",
+        "The request is a POST to /orders/batch",
+        "The request body contains an array of 3 order objects",
+        "Each order includes clientId: 2147483647",
+        "The signing payload uses request body + nonce (no identity)"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Cancel all my open orders on BitoPro.",
+      "expected_output": "The agent asks for confirmation, then constructs an authenticated DELETE request to /orders/all.",
+      "expectations": [
+        "The agent warns the user this will cancel ALL open orders and asks for confirmation",
+        "The agent uses the cancel_all_orders tool",
+        "The request is a DELETE to /orders/all",
+        "The signing payload uses identity + nonce"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "Show me the details of order 2959906694 for BTC/TWD.",
+      "expected_output": "The agent constructs an authenticated GET request to /orders/btc_twd/2959906694.",
+      "expectations": [
+        "The agent uses the get_order tool",
+        "The request URL includes /orders/btc_twd/2959906694",
+        "The signing payload uses identity + nonce"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Show me my recent trade fills for ETH/TWD.",
+      "expected_output": "The agent constructs an authenticated GET request to /orders/trades/eth_twd.",
+      "expectations": [
+        "The agent uses the get_trades tool (private, not public trades)",
+        "The request URL includes /orders/trades/eth_twd",
+        "The signing payload uses identity + nonce"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "Show me my BTC deposit history from the last month.",
+      "expected_output": "The agent constructs an authenticated GET request to /wallet/depositHistory/btc with appropriate timestamp range.",
+      "expectations": [
+        "The agent uses the get_deposit_history tool",
+        "The request URL includes /wallet/depositHistory/btc",
+        "The startTimestamp is approximately 30 days ago",
+        "The signing payload uses identity + nonce"
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "Withdraw 100 USDT via TRC-20 to address TXyz123... on BitoPro.",
+      "expected_output": "The agent asks for confirmation showing amount, address, protocol, and estimated fee before executing the withdrawal.",
+      "expectations": [
+        "The agent confirms withdrawal details with the user: amount, address, protocol, fee",
+        "The agent uses the create_withdraw tool",
+        "The request is a POST to /wallet/withdraw/usdt",
+        "The request body includes protocol: TRX, address, and amount",
+        "The signing payload uses request body + nonce (no identity)",
+        "The agent mentions that the withdraw address must be pre-configured on BitoPro"
+      ]
     }
   ]
 }

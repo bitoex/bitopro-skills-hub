@@ -253,8 +253,12 @@ func main() {
 | Open API (Public) | 600 requests / min / IP |
 | Auth API (Private) | 600 requests / min / IP + 600 requests / min / UID |
 | Create Order | 1200 requests / min / UID |
+| Create Batch Orders | 90 requests / min / IP & UID |
 | Cancel Order | 900 requests / min / UID |
+| Cancel Batch Orders | 2 requests / sec / IP |
+| Cancel All Orders | 1 request / sec / IP & UID |
 | Open Orders | 5 requests / sec / UID |
+| Create Withdraw | 60 requests / min / IP |
 
 ## Common Errors
 

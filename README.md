@@ -8,7 +8,7 @@ Built for [ClawHub](https://clawhub.ai/) and compatible with Claude Code / OpenC
 
 | Skill | Description | Status |
 |-------|-------------|--------|
-| [bitopro-spot](./skills/bitopro/spot/) | Full spot exchange API wrapper — tickers, order book, trades, candlesticks, balances, order CRUD (9 endpoints) | Published |
+| [bitopro-spot](./skills/bitopro/spot/) | Full exchange API wrapper — tickers, order book, trades, candlesticks, trading pairs, fees, OTC price, balances, order CRUD, batch orders, trade fills, deposit/withdraw history (22 endpoints) | Published |
 
 ## Quick Start
 

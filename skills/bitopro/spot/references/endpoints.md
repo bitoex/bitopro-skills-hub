@@ -160,6 +160,153 @@ Get OHLCV candlestick data.
 
 ---
 
+### 5. GET `/provisioning/trading-pairs`
+
+Get a list of all available trading pairs and their configuration.
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| (none) | — | — | — | No parameters |
+
+**Response Fields (data array):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pair` | string | Trading pair (e.g. `btc_twd`) |
+| `base` | string | Base currency |
+| `quote` | string | Quote currency |
+| `basePrecision` | string | Base currency decimal precision |
+| `quotePrecision` | string | Quote currency decimal precision |
+| `minLimitBaseAmount` | string | Minimum order amount (base) |
+| `maxLimitBaseAmount` | string | Maximum order amount (base) |
+| `minMarketBuyQuoteAmount` | string | Minimum market buy amount (quote) |
+| `orderOpenLimit` | string | Max number of open orders |
+| `maintain` | boolean | Whether the pair is under maintenance |
+| `amountPrecision` | string | Amount decimal precision |
+
+**Example Response:**
+
+```json
+{
+  "data": [
+    {
+      "pair": "btc_twd",
+      "base": "btc",
+      "quote": "twd",
+      "basePrecision": "8",
+      "quotePrecision": "3",
+      "minLimitBaseAmount": "0.0001",
+      "maxLimitBaseAmount": "1000",
+      "minMarketBuyQuoteAmount": "3",
+      "orderOpenLimit": "200",
+      "maintain": false,
+      "amountPrecision": "2"
+    }
+  ]
+}
+```
+
+---
+
+### 6. GET `/provisioning/currencies`
+
+Get the list of currencies and their deposit/withdrawal info.
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| (none) | — | — | — | No parameters |
+
+**Response Fields (data array):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `currency` | string | Currency name (e.g. `TWD`, `USDT (ETH-ERC20)`) |
+| `withdrawFee` | string | Withdrawal fee |
+| `minWithdraw` | string | Minimum withdrawal amount |
+| `maxWithdraw` | string | Maximum withdrawal amount |
+| `maxDailyWithdraw` | string | Daily withdrawal limit |
+| `withdraw` | boolean | Whether withdrawal is enabled |
+| `deposit` | boolean | Whether deposit is enabled |
+| `depositConfirmation` | string | Required blockchain confirmations |
+
+**Example Response:**
+
+```json
+{
+  "data": [
+    {
+      "currency": "TWD",
+      "withdrawFee": "15",
+      "minWithdraw": "100",
+      "maxWithdraw": "1000000",
+      "maxDailyWithdraw": "2000000",
+      "withdraw": true,
+      "deposit": true,
+      "depositConfirmation": "0"
+    },
+    {
+      "currency": "USDT (ETH-ERC20)",
+      "withdrawFee": "10",
+      "minWithdraw": "10",
+      "maxWithdraw": "300000",
+      "maxDailyWithdraw": "500000",
+      "withdraw": true,
+      "deposit": true,
+      "depositConfirmation": "64"
+    }
+  ]
+}
+```
+
+---
+
+### 7. GET `/provisioning/limitations-and-fees`
+
+Get VIP trading fee rates, withdrawal fees, deposit confirmations, and TTCheck limitations.
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| (none) | — | — | — | No parameters |
+
+**Response Sections:**
+
+- `tradingFeeRate[]` — VIP tier fee rates with `rank`, `twdVolume`, `bitoAmount`, `makerFee`, `takerFee`, `makerBitoFee`, `takerBitoFee`, `gridBotMakerFee`, `gridBotTakerFee`
+- `restrictionsOfWithdrawalFees[]` — per-currency withdrawal fees and limits with `currency`, `fee`, `minimumTradingAmount`, `maximumTradingAmount`, `dailyCumulativeMaximumAmount`, `protocol`, `twdWithdrawMonthly`
+- `cryptocurrencyDepositFeeAndConfirmation[]` — deposit fees and confirmation counts
+- `ttCheckFeesAndLimitationsLevel1[]` / `ttCheckFeesAndLimitationsLevel2[]` — TTCheck limits
+
+---
+
+### 8. GET `/price/otc/{currency}`
+
+Get OTC buy and sell price for a currency in TWD.
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| Path | `currency` | string | Yes | Currency (e.g. `btc`, `eth`) |
+
+**Example Response:**
+
+```json
+{
+  "currency": "btc",
+  "buySwapQuotation": {
+    "twd": {
+      "pricingCurrency": "TWD",
+      "exchangeRate": "1130752.513945"
+    }
+  },
+  "sellSwapQuotation": {
+    "twd": {
+      "pricingCurrency": "TWD",
+      "exchangeRate": "1107699.219"
+    }
+  }
+}
+```
+
+---
+
 ## Private Endpoints (Authentication Required)
 
 All private endpoints require authentication headers. See [auth.md](./auth.md) for details.
@@ -171,7 +318,7 @@ All private endpoints require authentication headers. See [auth.md](./auth.md) f
 
 ---
 
-### 5. GET `/accounts/balance`
+### 9. GET `/accounts/balance`
 
 Get account balances for all currencies.
 
@@ -204,7 +351,7 @@ Get account balances for all currencies.
 
 ---
 
-### 6. POST `/orders/{pair}`
+### 10. POST `/orders/{pair}`
 
 Create a new order (limit / market / stop-limit).
 
@@ -258,7 +405,7 @@ Create a new order (limit / market / stop-limit).
 
 ---
 
-### 7. DELETE `/orders/{pair}/{orderId}`
+### 11. DELETE `/orders/{pair}/{orderId}`
 
 Cancel an existing order.
 
@@ -287,7 +434,7 @@ Cancel an existing order.
 
 ---
 
-### 8. GET `/orders/open`
+### 12. GET `/orders/open`
 
 Get all open (unfilled or partially filled) orders.
 
@@ -349,7 +496,7 @@ Get all open (unfilled or partially filled) orders.
 
 ---
 
-### 9. GET `/orders/all/{pair}`
+### 13. GET `/orders/all/{pair}`
 
 Get order history for a trading pair.
 
@@ -367,6 +514,429 @@ Get order history for a trading pair.
 **Payload:** `{ "identity": email, "nonce": timestamp_ms }`
 
 **Response:** Same fields as open orders (see above), ordered by creation time descending. Maximum query window is 90 days.
+
+---
+
+### 14. POST `/orders/batch`
+
+Create up to 10 limit or market orders at a time.
+
+**Rate Limit:** 90 req / min / IP & UID
+
+**Payload:** The request body array + nonce (no `identity`).
+
+**Request Body:** Array of order objects:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `pair` | string | Yes | Trading pair (e.g. `BTC_TWD`) |
+| `action` | string | Yes | `BUY` or `SELL` |
+| `type` | string | Yes | `LIMIT` or `MARKET` |
+| `amount` | string | Yes | Order quantity (for market buy: quote currency amount) |
+| `price` | string | Yes | Order price |
+| `timestamp` | int64 | Yes | Current timestamp (ms) |
+| `timeInForce` | string | No | `GTC` (default) or `POST_ONLY` |
+| `clientId` | uint64 | No | Custom order ID (1–2147483647) |
+
+**Example Request:**
+
+```json
+[
+  {
+    "pair": "BTC_TWD",
+    "action": "BUY",
+    "type": "LIMIT",
+    "price": "2800000",
+    "amount": "0.001",
+    "timestamp": 1696000000000,
+    "clientId": 2147483647
+  },
+  {
+    "pair": "ETH_TWD",
+    "action": "SELL",
+    "type": "MARKET",
+    "amount": "0.1",
+    "timestamp": 1696000000000
+  }
+]
+```
+
+**Example Response:**
+
+```json
+{
+  "data": [
+    {
+      "orderId": 1234567890,
+      "action": "BUY",
+      "price": "2800000",
+      "amount": "0.001",
+      "timestamp": 1696000000000,
+      "timeInForce": "GTC",
+      "clientId": 2147483647
+    },
+    {
+      "orderId": 3234567891,
+      "action": "SELL",
+      "amount": "0.1",
+      "timestamp": 1696000000000,
+      "timeInForce": "GTC"
+    }
+  ]
+}
+```
+
+---
+
+### 15. PUT `/orders`
+
+Cancel multiple orders by given order IDs, grouped by pair.
+
+**Rate Limit:** 2 req / sec / IP
+
+**Payload:** The request body + nonce (no `identity`).
+
+**Request Body:** JSON object keyed by pair, values are arrays of order ID strings.
+
+**Example Request:**
+
+```json
+{
+  "BTC_USDT": ["12234566", "12234567"],
+  "ETH_USDT": ["44566712", "24552212"]
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "data": {
+    "BTC_USDT": ["12234566", "12234567"],
+    "ETH_USDT": ["44566712", "24552212"]
+  }
+}
+```
+
+---
+
+### 16. DELETE `/orders/all` or `/orders/{pair}`
+
+Cancel all open orders. Use `/orders/all` to cancel all pairs, or `/orders/{pair}` to cancel a specific pair.
+
+**Rate Limit:** 1 req / sec / IP & UID
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| Path | `pair` | string | No | Trading pair. Omit (use `/orders/all`) to cancel all pairs. |
+
+**Payload:** `{ "identity": email, "nonce": timestamp_ms }`
+
+**Example Response:**
+
+```json
+{
+  "data": {
+    "BTC_USDT": ["12234566", "12234567"],
+    "ETH_USDT": ["44566712", "24552212"]
+  }
+}
+```
+
+---
+
+### 17. GET `/orders/{pair}/{orderId}`
+
+Get detailed information for a single order by ID.
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| Path | `pair` | string | Yes | Trading pair (e.g. `btc_twd`) |
+| Path | `orderId` | string | Yes | Order ID |
+
+**Payload:** `{ "identity": email, "nonce": timestamp_ms }`
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Order ID |
+| `pair` | string | Trading pair |
+| `price` | string | Order price |
+| `avgExecutionPrice` | string | Average fill price |
+| `action` | string | `BUY` / `SELL` |
+| `type` | string | `LIMIT` / `MARKET` / `STOP_LIMIT` |
+| `status` | int | Order status code |
+| `originalAmount` | string | Original order quantity |
+| `remainingAmount` | string | Unfilled quantity |
+| `executedAmount` | string | Filled quantity |
+| `fee` | string | Fee amount |
+| `feeSymbol` | string | Fee currency |
+| `bitoFee` | string | BITO token fee |
+| `total` | string | Total value |
+| `stopPrice` | string | Stop trigger price (STOP_LIMIT only) |
+| `condition` | string | `>=` or `<=` (STOP_LIMIT only) |
+| `timeInForce` | string | `GTC` / `POST_ONLY` |
+| `createdTimestamp` | int64 | Creation time (ms) |
+| `updatedTimestamp` | int64 | Last update time (ms) |
+
+> History available only for the past 90 days.
+
+**Example Response:**
+
+```json
+{
+  "id": "1234567890",
+  "pair": "btc_twd",
+  "price": "2800000",
+  "avgExecutionPrice": "2799500",
+  "action": "BUY",
+  "type": "LIMIT",
+  "status": 2,
+  "originalAmount": "0.001",
+  "remainingAmount": "0",
+  "executedAmount": "0.001",
+  "fee": "0.000001",
+  "feeSymbol": "btc",
+  "bitoFee": "0",
+  "total": "2799.5",
+  "timeInForce": "GTC",
+  "createdTimestamp": 1696000000000,
+  "updatedTimestamp": 1696000100000
+}
+```
+
+---
+
+### 18. GET `/orders/trades/{pair}`
+
+Get trade fill history for a trading pair (your executed trades).
+
+| Location | Parameter | Type | Required | Default | Description |
+|----------|-----------|------|----------|---------|-------------|
+| Path | `pair` | string | Yes | — | Trading pair (e.g. `btc_twd`) |
+| Query | `startTimestamp` | int64 | No | 90 days ago | Start time (ms) |
+| Query | `endTimestamp` | int64 | No | Now | End time (ms) |
+| Query | `orderId` | string | No | — | Filter by order ID |
+| Query | `tradeId` | string | No | — | Pagination cursor (returns trades with ID <= this value) |
+| Query | `limit` | int64 | No | 100 | Results per page (1–1000) |
+
+**Payload:** `{ "identity": email, "nonce": timestamp_ms }`
+
+**Response Fields (data array):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tradeId` | string | Trade ID |
+| `orderId` | string | Associated order ID |
+| `price` | string | Execution price |
+| `action` | string | `BUY` / `SELL` |
+| `baseAmount` | string | Base currency amount |
+| `quoteAmount` | string | Quote currency amount |
+| `fee` | string | Fee amount |
+| `feeSymbol` | string | Fee currency |
+| `isTaker` | boolean | Whether this trade was a taker |
+| `createdTimestamp` | int64 | Trade time (ms) |
+
+**Example Response:**
+
+```json
+{
+  "data": [
+    {
+      "tradeId": "3109362209",
+      "orderId": "7977988235",
+      "price": "2800000",
+      "action": "BUY",
+      "baseAmount": "0.001",
+      "quoteAmount": "2800",
+      "fee": "0.000001",
+      "feeSymbol": "btc",
+      "isTaker": true,
+      "createdTimestamp": 1696000000000
+    }
+  ]
+}
+```
+
+---
+
+## Wallet Endpoints
+
+---
+
+### 19. GET `/wallet/depositHistory/{currency}`
+
+Get deposit history for a specific currency.
+
+| Location | Parameter | Type | Required | Default | Description |
+|----------|-----------|------|----------|---------|-------------|
+| Path | `currency` | string | Yes | — | Currency (e.g. `twd`, `btc`, `usdt`) |
+| Query | `startTimestamp` | int64 | No | 90 days ago | Start time (ms) |
+| Query | `endTimestamp` | int64 | No | Now | End time (ms) |
+| Query | `limit` | int64 | No | 20 | Results per page (1–100) |
+| Query | `id` | string | No | — | Pagination cursor |
+| Query | `statuses` | string | No | — | Comma-separated status filter |
+| Query | `txID` | string | No | — | Filter by transaction ID (crypto only, not for TWD) |
+
+**Payload:** `{ "identity": email, "nonce": timestamp_ms }`
+
+> Max query window: 90 days. `txID` is not unique and may return multiple records.
+
+**Response Fields (data array):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `serial` | string | Deposit serial number |
+| `timestamp` | string | Deposit time (ms) |
+| `address` | string | Deposit address |
+| `amount` | string | Deposit amount |
+| `fee` | string | Fee |
+| `total` | string | Total credited |
+| `status` | string | Deposit status |
+| `txid` | string | Blockchain transaction ID |
+| `protocol` | string | Network protocol |
+| `id` | string | Record ID |
+| `message` | string | Attached message (may not be included) |
+
+**Example Response:**
+
+```json
+{
+  "data": [
+    {
+      "serial": "20210126BW05262128",
+      "timestamp": "1611660419000",
+      "address": "0x1234...abcd",
+      "amount": "1000",
+      "fee": "0",
+      "total": "1000",
+      "status": "COMPLETE",
+      "txid": "00d618f6ecb5697c...",
+      "protocol": "ERC20",
+      "id": "3255779687"
+    }
+  ]
+}
+```
+
+---
+
+### 20. GET `/wallet/withdrawHistory/{currency}`
+
+Get withdrawal history for a specific currency.
+
+| Location | Parameter | Type | Required | Default | Description |
+|----------|-----------|------|----------|---------|-------------|
+| Path | `currency` | string | Yes | — | Currency (e.g. `twd`, `btc`, `usdt`) |
+| Query | `startTimestamp` | int64 | No | 90 days ago | Start time (ms) |
+| Query | `endTimestamp` | int64 | No | Now | End time (ms) |
+| Query | `limit` | int64 | No | 20 | Results per page (1–100) |
+| Query | `id` | string | No | — | Pagination cursor |
+| Query | `statuses` | string | No | — | Comma-separated status filter |
+| Query | `txID` | string | No | — | Filter by transaction ID (crypto only, not for TWD) |
+
+**Payload:** `{ "identity": email, "nonce": timestamp_ms }`
+
+> Max query window: 90 days.
+
+**Response Fields (data array):**
+
+Same as deposit history fields: `serial`, `timestamp`, `address`, `amount`, `fee`, `total`, `status`, `txid`, `protocol`, `id`, `message`.
+
+---
+
+### 21. GET `/wallet/withdraw/{currency}/{serial}` or `/wallet/withdraw/{currency}/id/{id}`
+
+Get details of a single withdrawal by serial number or by ID.
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| Path | `currency` | string | Yes | Currency (e.g. `twd`, `btc`) |
+| Path | `serial` | string | Conditional | Withdraw serial (use one of serial or id) |
+| Path | `id` | string | Conditional | Withdraw ID (use one of serial or id) |
+
+**Payload:** `{ "identity": email, "nonce": timestamp_ms }`
+
+**Example Response:**
+
+```json
+{
+  "data": {
+    "serial": "20200417TW51258295",
+    "protocol": "MAIN",
+    "address": "64382xx3234",
+    "amount": "12353",
+    "fee": "15",
+    "total": "12368",
+    "status": "COMPLETE",
+    "id": "3994629320",
+    "timestamp": "1601951443123"
+  }
+}
+```
+
+---
+
+### 22. POST `/wallet/withdraw/{currency}`
+
+Submit a withdrawal request. Withdraw addresses must be pre-configured at https://www.bitopro.com/address.
+
+**Rate Limit:** 60 req / min / IP
+
+| Location | Parameter | Type | Required | Description |
+|----------|-----------|------|----------|-------------|
+| Path | `currency` | string | Yes | Currency name without protocol (e.g. `twd`, `usdt`, `btc`) |
+
+**Payload:** The request body + nonce (no `identity`).
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `protocol` | string | No | `MAIN` (default), `ERC20`, `OMNI`, `TRX`, `BSC`, `POLYGON` |
+| `address` | string | Conditional | Destination address (required for non-TWD) |
+| `amount` | string | Yes | Amount to withdraw |
+| `message` | string | No | Note/memo (required for EOS, BNB) |
+| `bankAccountSerial` | string | No | Bank account number (TWD only) |
+| `bankSerial` | string | No | Bank code (TWD only) |
+
+**Example Request (Crypto):**
+
+```json
+{
+  "protocol": "ERC20",
+  "address": "0x1234567890abcdef...",
+  "amount": "100"
+}
+```
+
+**Example Request (TWD):**
+
+```json
+{
+  "amount": "50000",
+  "bankAccountSerial": "1020000286850710",
+  "bankSerial": "805"
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "data": {
+    "serial": "20200417TW51258295",
+    "currency": "TWD",
+    "protocol": "MAIN",
+    "address": "64382xx3234",
+    "amount": "12353",
+    "fee": "15",
+    "total": "12368",
+    "id": "12368"
+  }
+}
+```
 
 ---
 
