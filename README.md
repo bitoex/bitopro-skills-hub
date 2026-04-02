@@ -23,7 +23,7 @@ npx clawhub install bitopro-spot
 Clone and point your agent to the skill directory:
 
 ```bash
-git clone https://github.com/bitoadam/bitopro-skills-hub.git
+git clone https://github.com/bitoex/bitopro-skills-hub.git
 ```
 
 ### Configuration
