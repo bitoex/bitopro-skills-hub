@@ -59,7 +59,7 @@ Only coins listed on BitoPro are included in output. Use this mapping to transla
 | KAIA | kaia | kaia-kaia |
 | BITO | bito-coin | bito-bito-coin |
 
-> **Important:** This mapping may become stale when BitoPro adds or removes coins. Use Tool 8 (`get_bitopro_pairs`) to refresh the live list, then cross-reference with the mapping above.
+> **Important:** This mapping may become stale when BitoPro adds or removes coins. Use Tool 7 (`get_bitopro_pairs`) to refresh the live list, then cross-reference with the mapping above.
 
 ## Tools
 
@@ -288,15 +288,38 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
    - CoinGecko free tier: ~30 req/min. Space requests if making multiple calls.
    - If rate limited (HTTP 429), inform user and suggest retrying in 1-2 minutes.
 
-5. **Include source attribution and disclaimer.** Every response MUST end with:
+5. **Include source attribution and disclaimer (MANDATORY for market-data responses).** Responses displaying **market data** (price, sentiment, rankings, market cap, trends, institutional holdings) MUST end with the footer below. List **only the external data sources actually used** — do NOT list sources you did not query, and do NOT list BitoPro (home exchange, not third-party).
 
-```
-────────────
-📌 數據來源：Alternative.me / CoinGecko / CoinPaprika / BitoPro
-⚠️ 本報告僅供參考，不構成投資建議。加密貨幣投資有風險，請自行判斷。
-```
+   Mapping of tools to attribution behaviour:
 
-6. **Stale mapping detection.** If a user asks about a coin not in the mapping, first call Tool 8 to check if it's newly listed on BitoPro. If found, note it for the user but advise that CoinGecko/CoinPaprika IDs may need manual lookup.
+   | Tool | External Source | Disclaimer Required? |
+   |------|-----------------|----------------------|
+   | 1 (`get_fear_greed_index`)   | Alternative.me | ✅ (market sentiment) |
+   | 2 (`get_global_market`)      | CoinGecko      | ✅ (market data) |
+   | 3 (`get_coin_rankings`)      | CoinGecko      | ✅ (market data) |
+   | 4 (`get_trending_coins`)     | CoinGecko      | ✅ (market data) |
+   | 5 (`get_company_holdings`)   | CoinGecko      | ✅ (financial data) |
+   | 6 (`get_coin_detail`)        | CoinPaprika    | ✅ (market data) |
+   | 7 (`get_bitopro_pairs`)      | (home)         | ❌ **no footer** — operational metadata only (trading-pair specs, precision, min/max order size) — not market/investment data |
+
+   Footer template:
+
+   ```
+   ────────────
+   📌 數據來源：{actually used external sources, joined with " / "}
+   ⚠️ 本報告僅供參考，不構成投資建議。加密貨幣投資有風險，請自行判斷。
+   ```
+
+   Examples:
+   - 只用 Tool 1 → `📌 數據來源：Alternative.me` + disclaimer
+   - Tool 1 + Tool 3 → `📌 數據來源：Alternative.me / CoinGecko` + disclaimer
+   - Tool 1 + Tool 3 + Tool 6 → `📌 數據來源：Alternative.me / CoinGecko / CoinPaprika` + disclaimer
+   - Tool 1 + Tool 7 (mixed) → attribution lists only Tool 1's source (Alternative.me); disclaimer required because Tool 1 outputs market data
+   - **Only Tool 7** → **no footer at all** (no attribution, no disclaimer — it's just operational specs)
+
+   If an API call failed, still include that source in the footer with a note (e.g. `CoinGecko (部分資料失敗)`) so the user knows.
+
+6. **Stale mapping detection.** If a user asks about a coin not in the mapping, first call Tool 7 (`get_bitopro_pairs`) to check if it's newly listed on BitoPro. If found, note it for the user but advise that CoinGecko/CoinPaprika IDs may need manual lookup.
 
 7. **Error handling.** If an API returns an error or empty data:
    - Report which data source failed
