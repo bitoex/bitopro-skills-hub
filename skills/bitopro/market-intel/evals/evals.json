@@ -1,0 +1,127 @@
+[
+  {
+    "id": "fear-greed-latest",
+    "name": "Get latest Fear & Greed Index",
+    "prompt": "目前加密貨幣市場的恐懼貪婪指數是多少？",
+    "expected_tools": ["get_fear_greed_index"],
+    "expected_endpoints": ["GET https://api.alternative.me/fng/"],
+    "expected_output_contains": ["恐懼貪婪指數", "數據來源", "不構成投資建議"],
+    "notes": "Should display value (0-100), classification, and Chinese translation"
+  },
+  {
+    "id": "fear-greed-history",
+    "name": "Get Fear & Greed Index history",
+    "prompt": "顯示過去 30 天的恐懼貪婪指數趨勢",
+    "expected_tools": ["get_fear_greed_index"],
+    "expected_endpoints": ["GET https://api.alternative.me/fng/?limit=30"],
+    "expected_output_contains": ["恐懼貪婪指數", "趨勢"],
+    "notes": "Should show trend table with dates and daily values"
+  },
+  {
+    "id": "global-market",
+    "name": "Get global market overview (BitoPro-relevant fields only)",
+    "prompt": "加密貨幣全球市場概況如何？",
+    "expected_tools": ["get_global_market"],
+    "expected_endpoints": ["GET https://api.coingecko.com/api/v3/global"],
+    "expected_output_contains": ["總市值", "BTC 市佔率", "交易量"],
+    "expected_output_not_contains": ["活躍幣種", "17,", "16,", "active_cryptocurrencies", "ICO", "markets: 1"],
+    "notes": "Should display total market cap, BTC/ETH dominance, 24h volume. MUST NOT display active_cryptocurrencies, markets, or ICO counts (global universe stats unrelated to BitoPro)."
+  },
+  {
+    "id": "coin-rankings",
+    "name": "Get BitoPro coin rankings",
+    "prompt": "BitoPro 上架幣種的市值排行？",
+    "expected_tools": ["get_coin_rankings"],
+    "expected_endpoints": ["GET https://api.coingecko.com/api/v3/coins/markets"],
+    "expected_output_contains": ["BTC", "ETH", "市值", "24h"],
+    "expected_output_not_contains": ["PEPE", "WIF", "BONK", "MV", "GensoKishi"],
+    "notes": "Must only show BitoPro-listed coins (MV removed post-delisting). BITO may have null market_cap_rank — display as —."
+  },
+  {
+    "id": "trending-coins-bitopro-only",
+    "name": "Trending coins — BitoPro filter (drop non-BitoPro)",
+    "prompt": "現在有什麼熱門幣種？有在 BitoPro 上架嗎？",
+    "expected_tools": ["get_trending_coins"],
+    "expected_endpoints": ["GET https://api.coingecko.com/api/v3/search/trending"],
+    "expected_output_contains": ["BitoPro"],
+    "expected_output_not_contains": ["PENGU", "RaveDAO", "Hyperliquid", "HYPE", "Zcash", "ZEC", "Pudgy Penguins", "Polkadot", "DOT", "AAVE", "Pendle", "Monad"],
+    "notes": "MUST drop all non-BitoPro trending coins. If BitoPro coin set doesn't intersect with trending, show '本輪全球趨勢榜無 BitoPro 上架幣種' message. Never list non-BitoPro coin names."
+  },
+  {
+    "id": "category-performance-removed",
+    "name": "Category performance must be rejected (out of scope)",
+    "prompt": "哪些加密貨幣板塊今天漲最多？",
+    "expected_tools": [],
+    "expected_output_contains": ["BitoPro", "範圍外"],
+    "notes": "Tool 5 (category performance) removed in v1.1. Categories don't map cleanly to BitoPro's 18 coins. Skill should explain this is out of scope."
+  },
+  {
+    "id": "company-holdings-btc",
+    "name": "Get company BTC holdings",
+    "prompt": "哪些上市公司持有最多比特幣？",
+    "expected_tools": ["get_company_holdings"],
+    "expected_endpoints": ["GET https://api.coingecko.com/api/v3/companies/public_treasury/bitcoin"],
+    "expected_output_contains": ["持倉", "BTC", "MicroStrategy"],
+    "notes": "Should show top companies by BTC holdings"
+  },
+  {
+    "id": "company-holdings-eth",
+    "name": "Get company ETH holdings",
+    "prompt": "上市公司 ETH 持倉排行",
+    "expected_tools": ["get_company_holdings"],
+    "expected_endpoints": ["GET https://api.coingecko.com/api/v3/companies/public_treasury/ethereum"],
+    "expected_output_contains": ["持倉", "ETH"],
+    "notes": "Should show top companies by ETH holdings"
+  },
+  {
+    "id": "coin-detail-btc",
+    "name": "Get BTC multi-timeframe details",
+    "prompt": "比特幣的詳細行情，各時間維度漲跌幅",
+    "expected_tools": ["get_coin_detail"],
+    "expected_endpoints": ["GET https://api.coinpaprika.com/v1/tickers/btc-bitcoin"],
+    "expected_output_contains": ["15m", "1h", "24h", "7d", "30d", "ATH"],
+    "notes": "Should show price changes across all timeframes and ATH data"
+  },
+  {
+    "id": "coin-detail-sol",
+    "name": "Get SOL details",
+    "prompt": "SOL 最近表現怎麼樣？",
+    "expected_tools": ["get_coin_detail"],
+    "expected_endpoints": ["GET https://api.coinpaprika.com/v1/tickers/sol-solana"],
+    "expected_output_contains": ["Solana", "SOL"],
+    "notes": "Should correctly map SOL to CoinPaprika ID sol-solana"
+  },
+  {
+    "id": "comprehensive-overview",
+    "name": "Comprehensive market overview",
+    "prompt": "給我一份完整的加密貨幣市場概覽",
+    "expected_tools": ["get_fear_greed_index", "get_global_market", "get_coin_rankings"],
+    "notes": "Should combine multiple tools for comprehensive report. Tools should be called in parallel."
+  },
+  {
+    "id": "non-bitopro-coin-rejection",
+    "name": "Reject non-BitoPro coin query",
+    "prompt": "PEPE 幣的詳細行情",
+    "expected_tools": [],
+    "expected_output_contains": ["BitoPro", "未上架"],
+    "notes": "Should inform user that PEPE is not listed on BitoPro and not fetch data for it"
+  },
+  {
+    "id": "top-gainers",
+    "name": "BitoPro top gainers",
+    "prompt": "BitoPro 上今天漲最多的幣是哪些？",
+    "expected_tools": ["get_coin_rankings"],
+    "expected_output_contains": ["漲幅", "24h"],
+    "notes": "Should sort by price_change_percentage_24h descending and highlight top gainers"
+  },
+  {
+    "id": "refresh-pairs",
+    "name": "Refresh BitoPro trading pair list",
+    "prompt": "BitoPro 現在有哪些幣種可以交易？",
+    "expected_tools": ["get_bitopro_pairs"],
+    "expected_endpoints": ["GET https://api.bitopro.com/v3/provisioning/trading-pairs"],
+    "expected_output_contains": ["交易對", "限價最小", "限價最大", "市價買最小", "數量精度", "同時掛單", "億", "萬"],
+    "expected_output_not_contains": ["1e+", "1E+", "e+08", "e+09", "1.0e", "1e8"],
+    "notes": "Must (a) use `Accept: application/json` header, (b) output full per-pair specs, (c) group by TWD/USDT/BTC quote, (d) use 億/萬 notation — NEVER scientific notation like 1e+08."
+  }
+]

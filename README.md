@@ -9,6 +9,7 @@ Built for [ClawHub](https://clawhub.ai/) and compatible with Claude Code / OpenC
 | Skill | Description | Status |
 |-------|-------------|--------|
 | [bitopro-spot](./skills/bitopro/spot/) | Full exchange API wrapper — tickers, order book, trades, candlesticks, trading pairs, fees, OTC price, balances, order CRUD, batch orders, trade fills, deposit/withdraw history (22 endpoints) | Published |
+| [bitopro-market-intel](./skills/bitopro/market-intel/) | Crypto market intelligence scoped to BitoPro spot coins — Fear & Greed index, BTC/ETH-dominance macro overview, BitoPro coin rankings, BitoPro coins on trending list, company BTC/ETH holdings, multi-timeframe coin details (7 tools, free APIs) | Published |
 
 ## Quick Start
 
