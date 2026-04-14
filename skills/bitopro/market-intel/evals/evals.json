@@ -127,7 +127,7 @@
     "prompt": "BitoPro 所有交易對的下單規格（最小量、最大量、精度）？",
     "expected_tools": ["get_bitopro_pairs"],
     "expected_endpoints": ["GET https://api.bitopro.com/v3/provisioning/trading-pairs"],
-    "expected_output_contains": ["交易對", "限價最小", "限價最大", "市價買最小", "數量精度", "同時掛單", "億", "萬"],
+    "expected_output_contains": ["交易對", "限價最小", "限價最大", "市價買最小", "數量精度", "掛單上限", "億", "萬"],
     "expected_output_not_contains": ["1e+", "1E+", "e+08", "e+09", "1.0e", "1e8", "Alternative.me", "CoinGecko", "CoinPaprika", "數據來源", "不構成投資建議"],
     "notes": "Must (a) use `Accept: application/json` header, (b) output full per-pair specs, (c) group by TWD/USDT/BTC quote, (d) use 億/萬 notation — NEVER scientific notation. **No footer required**: Tool 7 returns operational metadata (trading-pair specs) — not market/investment data — so neither attribution nor disclaimer is needed."
   },
@@ -137,7 +137,7 @@
     "prompt": "BitoPro 我要下單，btc_twd 最小下單量是多少？精度幾位？",
     "expected_tools": ["get_bitopro_pairs"],
     "expected_endpoints": ["GET https://api.bitopro.com/v3/provisioning/trading-pairs"],
-    "expected_output_contains": ["btc_twd", "0.0001", "BTC", "精度"],
+    "expected_output_contains": ["btc_twd", "0.0001", "BTC", "精度", "掛單上限"],
     "expected_output_not_contains": ["1e+", "數據來源", "不構成投資建議"],
     "notes": "Agent must extract btc_twd entry from Tool 7 response and answer min order size (0.0001 BTC) and amount precision (4). No footer (operational metadata, not market data). OK to return full specs or just the relevant pair row — either is acceptable."
   }
