@@ -241,10 +241,10 @@ Dynamically fetch current BitoPro trading pair list with full order-placement sp
 🔧 BitoPro 交易對規格（共 N 對，M 個基礎幣）
 
 ▸ TWD 計價區（N 對）:
-交易對       狀態       限價最小        限價最大       市價買最小   數量精度  價格精度  同時掛單
-btc_twd     ✅       0.0001 BTC       1 億 BTC       190 TWD     4       0      200
-shib_twd    ✅      10 萬 SHIB        55 億 SHIB      70 TWD     0       6      200
-kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4      200
+交易對       狀態       限價最小        限價最大       市價買最小   數量精度  價格精度  掛單上限
+btc_twd     ✅       0.0001 BTC       1 億 BTC       190 TWD     4       0      200張
+shib_twd    ✅      10 萬 SHIB        55 億 SHIB      70 TWD     0       6      200張
+kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4      200張
 ...
 
 ▸ USDT 計價區（同格式）
