@@ -2,7 +2,7 @@
 
 Complete mapping between BitoPro symbols, CoinGecko IDs, and CoinPaprika IDs.
 
-> Last verified: 2026-04-14 (MV removed — delisting decided)
+> Last verified: 2026-04-14
 
 ## Full Mapping Table
 
@@ -25,7 +25,7 @@ Complete mapping between BitoPro symbols, CoinGecko IDs, and CoinPaprika IDs.
 | POL | POL (ex-MATIC) | `polygon-ecosystem-token` | `matic-polygon` | CoinPaprika still uses old MATIC ID |
 | APE | ApeCoin | `apecoin` | `ape-apecoin` | |
 | KAIA | Kaia | `kaia` | `kaia-kaia` | Formerly Klaytn (KLAY) |
-| BITO | BITO Coin | `bito-coin` | `bito-bito-coin` | BitoPro exchange token — low liquidity, CoinGecko may return `market_cap_rank: null` |
+| BITO | BITO Coin | `bito-coin` | `bito-bito-coin` | BitoPro exchange token |
 
 ## CoinGecko IDs (comma-separated, for API calls)
 
@@ -60,12 +60,15 @@ When BitoPro adds new coins:
 3. For CoinPaprika, search via `GET https://api.coinpaprika.com/v1/search?q={coin_name}`
 4. Update this mapping file
 
-## Known Discrepancies
+## Known ID Discrepancies
 
 - **POL/MATIC**: CoinGecko uses `polygon-ecosystem-token` (new name), CoinPaprika still uses `matic-polygon` (old name). Both resolve to the same asset.
 - **KAIA/KLAY**: Formerly Klaytn, rebranded to Kaia. Both CoinGecko and CoinPaprika now use Kaia IDs.
-- **BITO**: BitoPro's exchange token. CoinGecko often returns `market_cap_rank: null` and `market_cap: 0`. Display rank as `—` and still show price + 24h change.
 
-## Removed / Delisted
+## Handling Partial Data
 
-- **MV (GensoKishi Metaverse)**: Removed from this mapping on 2026-04-14 following BitoPro's delisting decision. If the BitoPro `/v3/provisioning/trading-pairs` endpoint still temporarily lists MV pairs during the wind-down window, ignore them.
+A coin in this mapping may return `market_cap_rank: null` or `market_cap: 0` from CoinGecko depending on listing coverage. When this happens, display rank as `—`, skip the market-cap column, and still show price and 24h change.
+
+## Handling Pairs Outside This Mapping
+
+If `get_bitopro_pairs` returns a pair whose `base` is not listed in this mapping, treat it as out of scope: exclude it from the main table and flag it separately under "⚠️ 不在映射內". Refresh this mapping periodically (see below) to keep it aligned with the live BitoPro listing.

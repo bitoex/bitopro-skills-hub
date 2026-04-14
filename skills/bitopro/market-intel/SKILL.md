@@ -91,7 +91,7 @@ Get global crypto market overview.
   - `market_cap_percentage.btc` — BTC dominance (%)
   - `market_cap_percentage.eth` — ETH dominance (%)
   - `market_cap_change_percentage_24h_usd` — 24h market cap change (%)
-- **ignore fields:** `active_cryptocurrencies`, `markets`, `upcoming_icos`, `ongoing_icos`, `ended_icos` — these cover the full global universe (17k+ coins, 1.4k+ markets) and are not relevant to BitoPro's 18-coin scope. Do not display them.
+- **ignore fields:** `active_cryptocurrencies`, `markets`, `upcoming_icos`, `ongoing_icos`, `ended_icos` — global-universe statistics, not displayed.
 - **display format:**
 
 ```
@@ -118,7 +118,7 @@ Get market cap rankings for BitoPro-listed coins.
   - `sparkline=false`
 - **returns:** Array of objects with: `id`, `symbol`, `name`, `current_price`, `market_cap`, `market_cap_rank`, `total_volume`, `price_change_percentage_24h`, `high_24h`, `low_24h`, `ath`, `ath_change_percentage`, `ath_date`
 - **data quality notes:**
-  - Low-liquidity coins (e.g. BITO) may return `market_cap_rank: null` and `market_cap: 0`. Display rank as `—` and skip market-cap column for those rows; still show price and 24h change.
+  - A coin may return `market_cap_rank: null` or `market_cap: 0`. Display rank as `—` and skip the market-cap column; still show price and 24h change.
   - If CoinGecko omits a requested coin entirely (response length < requested IDs), list the missing symbols in a footer `⚠️ 無 CoinGecko 資料: {symbols}` rather than failing.
 - **display format:**
 
@@ -233,7 +233,7 @@ Dynamically fetch current BitoPro trading pair list with full order-placement sp
   - `maintain` — if `true`, pair is under maintenance (still listed but suspended)
   - `amountPrecision` — order-amount precision
   - `orderBookQuotePrecision` / `orderBookQuoteScaleLevel` — order book aggregation precision
-- **filtering:** Skip or flag pairs with `maintain: true` (e.g. MV pairs during delisting wind-down).
+- **filtering:** Skip or flag pairs with `maintain: true`, and exclude pairs whose `base` is not in the BitoPro coin mapping.
 - **purpose:** (a) verify which coins are currently listed; (b) surface per-pair trading specs so users know min/max order size, precision, and maintenance status before placing orders via the `bitopro-spot` skill.
 - **display format:**
 
@@ -251,12 +251,12 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
 ▸ BTC 計價區（同格式）
 
 ⚠️ 維護中（maintain=true）: {list, or "無"}
-⚠️ 下市流程中（若有）: {pair 清單與基本規格}
+⚠️ 不在映射內（若有）: {pair 清單與基本規格}
 ```
 
 **Grouping**: by quote currency (TWD / USDT / BTC).
 **Maintenance**: mark rows with ⛔ and list at the bottom.
-**Delisting**: if pair's `base` is not in the BitoPro coin mapping (e.g. MV during wind-down), exclude from main table and note separately under "⚠️ 下市流程中".
+**Out-of-mapping pairs**: if a pair's `base` is not in the BitoPro coin mapping above, exclude from the main table and note it separately under "⚠️ 不在映射內".
 
 **Number formatting (CRITICAL — user-facing display MUST be human-readable)**:
 - **Never use scientific notation** (`1e+08`, `6e+09`) — always convert to 中文 unit notation.
@@ -288,36 +288,30 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
    - CoinGecko free tier: ~30 req/min. Space requests if making multiple calls.
    - If rate limited (HTTP 429), inform user and suggest retrying in 1-2 minutes.
 
-5. **Include source attribution and disclaimer (MANDATORY for market-data responses).** Responses displaying **market data** (price, sentiment, rankings, market cap, trends, institutional holdings) MUST end with the footer below. List **only the external data sources actually used** — do NOT list sources you did not query, and do NOT list BitoPro (home exchange, not third-party).
+5. **Source attribution and disclaimer footer.** Responses displaying market-data (Tools 1-6) MUST end with the footer. List only the external sources actually queried; do not list BitoPro. Tool 7 alone returns no footer.
 
-   Mapping of tools to attribution behaviour:
-
-   | Tool | External Source | Disclaimer Required? |
-   |------|-----------------|----------------------|
-   | 1 (`get_fear_greed_index`)   | Alternative.me | ✅ (market sentiment) |
-   | 2 (`get_global_market`)      | CoinGecko      | ✅ (market data) |
-   | 3 (`get_coin_rankings`)      | CoinGecko      | ✅ (market data) |
-   | 4 (`get_trending_coins`)     | CoinGecko      | ✅ (market data) |
-   | 5 (`get_company_holdings`)   | CoinGecko      | ✅ (financial data) |
-   | 6 (`get_coin_detail`)        | CoinPaprika    | ✅ (market data) |
-   | 7 (`get_bitopro_pairs`)      | (home)         | ❌ **no footer** — operational metadata only (trading-pair specs, precision, min/max order size) — not market/investment data |
+   | Tool | External Source | Footer |
+   |------|-----------------|--------|
+   | 1    | Alternative.me  | ✅ |
+   | 2-5  | CoinGecko       | ✅ |
+   | 6    | CoinPaprika     | ✅ |
+   | 7    | —               | ❌ |
 
    Footer template:
 
    ```
    ────────────
-   📌 數據來源：{actually used external sources, joined with " / "}
+   📌 數據來源：{sources joined with " / "}
    ⚠️ 本報告僅供參考，不構成投資建議。加密貨幣投資有風險，請自行判斷。
    ```
 
    Examples:
-   - 只用 Tool 1 → `📌 數據來源：Alternative.me` + disclaimer
-   - Tool 1 + Tool 3 → `📌 數據來源：Alternative.me / CoinGecko` + disclaimer
-   - Tool 1 + Tool 3 + Tool 6 → `📌 數據來源：Alternative.me / CoinGecko / CoinPaprika` + disclaimer
-   - Tool 1 + Tool 7 (mixed) → attribution lists only Tool 1's source (Alternative.me); disclaimer required because Tool 1 outputs market data
-   - **Only Tool 7** → **no footer at all** (no attribution, no disclaimer — it's just operational specs)
+   - 只用 Tool 1 → `📌 數據來源：Alternative.me`
+   - Tool 1 + Tool 3 → `📌 數據來源：Alternative.me / CoinGecko`
+   - Tool 1 + Tool 7 → `📌 數據來源：Alternative.me`（Tool 7 不影響 footer）
+   - 只用 Tool 7 → 無 footer
 
-   If an API call failed, still include that source in the footer with a note (e.g. `CoinGecko (部分資料失敗)`) so the user knows.
+   If an API call fails, still include that source in the footer with a note (e.g. `CoinGecko (部分資料失敗)`).
 
 6. **Stale mapping detection.** If a user asks about a coin not in the mapping, first call Tool 7 (`get_bitopro_pairs`) to check if it's newly listed on BitoPro. If found, note it for the user but advise that CoinGecko/CoinPaprika IDs may need manual lookup.
 
@@ -331,7 +325,7 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
 All requests should include:
 
 ```
-User-Agent: bitopro-market-intel/1.0.0 (Skill)
+User-Agent: bitopro-market-intel/1.1.0 (Skill)
 Accept: application/json
 ```
 
