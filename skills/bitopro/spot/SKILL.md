@@ -1,12 +1,17 @@
 ---
 name: bitopro-spot
 description: >
-  Full BitoPro exchange API wrapper for cryptocurrency trading.
-  Use when: checking crypto prices on BitoPro, viewing order books, getting candlestick charts,
-  checking account balances, placing buy/sell orders, cancelling orders, managing open orders,
-  querying trade fills, batch order operations, viewing deposit/withdrawal history,
-  initiating withdrawals, or looking up trading pair info, fees, and currency details.
-  Supports TWD (New Taiwan Dollar) fiat trading pairs.
+  BitoPro exchange API wrapper for executing spot trades and managing your
+  account. Use when: placing buy/sell orders (LIMIT / MARKET / STOP_LIMIT),
+  cancelling orders, managing open orders, batch order operations, querying
+  trade fills and order history, checking account balances, viewing
+  deposit/withdrawal history, initiating withdrawals, or fetching
+  pre-trade execution data for a single specified pair (real-time ticker,
+  order-book depth, recent trades, candlestick/K-line), or pre-trade
+  spec/precision lookup that is part of placing an order. Supports TWD
+  (New Taiwan Dollar) fiat trading pairs. Requires API key.
+  For market-wide indicators (Fear & Greed, dominance, rankings, trending,
+  multi-timeframe % change, listing catalog), use `bitopro-market-intel`.
 version: 2.0.0
 metadata:
   openclaw:
