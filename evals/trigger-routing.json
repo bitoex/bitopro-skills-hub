@@ -1,0 +1,309 @@
+{
+  "$schema": "skill-trigger-eval-v1",
+  "purpose": "Verify that a user prompt routes to the correct skill between bitopro-spot and bitopro-market-intel after the 2026-04-15 description collision fix. Target accuracy >= 95% on each bucket (spot-only, market-intel-only). Ambiguous prompts are excluded from the accuracy denominator and logged separately.",
+  "scoring": {
+    "pass_if": "selected_skill == expected_skill",
+    "ambiguous_handling": "If expected_skill is 'either', both answers count as pass; these are reported but not included in the 95% gate."
+  },
+  "buckets": {
+    "spot_only": {
+      "target_accuracy": 0.95,
+      "cases": [
+        {
+          "id": "spot-001",
+          "prompt": "幫我用市價買 500 USDT 的 ETH",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: place MARKET buy order"
+        },
+        {
+          "id": "spot-002",
+          "prompt": "把我 btc_twd 所有未成交單都取消",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: cancel all open orders on a pair"
+        },
+        {
+          "id": "spot-003",
+          "prompt": "我帳戶現在 USDT 還剩多少？",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Private: account balance"
+        },
+        {
+          "id": "spot-004",
+          "prompt": "列出今天所有成交紀錄",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Private: trade fills history"
+        },
+        {
+          "id": "spot-005",
+          "prompt": "Show me the current order book depth for eth_twd, top 20 levels",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Execution-time data for a single specified pair (pre-trade)"
+        },
+        {
+          "id": "spot-006",
+          "prompt": "把 order id 123456789 改掉，用 LIMIT 單 0.01 BTC @ 2500000 TWD",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: replace / place LIMIT order"
+        },
+        {
+          "id": "spot-007",
+          "prompt": "設一個停損單：btc_twd，當價格跌破 2,200,000 時市價賣 0.05 BTC",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: STOP_LIMIT / stop-loss order"
+        },
+        {
+          "id": "spot-008",
+          "prompt": "過去 30 天的 USDT 出金紀錄給我看",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Private: withdrawal history"
+        },
+        {
+          "id": "spot-009",
+          "prompt": "幫我提 100 USDT 到這個 TRC20 地址 T...xxx",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: initiate withdrawal"
+        },
+        {
+          "id": "spot-010",
+          "prompt": "一次下 5 筆 LIMIT 買單，都是 eth_twd",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: batch order operation"
+        },
+        {
+          "id": "spot-011",
+          "prompt": "ETH 現在即時成交價多少？我要下單前確認一下",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Real-time ticker on a specified pair, pre-trade context"
+        },
+        {
+          "id": "spot-012",
+          "prompt": "幫我抓 btc_twd 過去 4 小時的 K 線 (1m)",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Candlestick on a specific pair (pre-trade/execution)"
+        },
+        {
+          "id": "spot-013",
+          "prompt": "我現在掛著哪幾張單？全部列出來",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Private: list open orders"
+        },
+        {
+          "id": "spot-014",
+          "prompt": "查 order id 987654321 這張單最後成交狀態",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Private: query specific order status"
+        },
+        {
+          "id": "spot-015",
+          "prompt": "Cancel order 555666 on eth_usdt",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: cancel single order"
+        },
+        {
+          "id": "spot-016",
+          "prompt": "最近 10 筆 btc_twd 的市場成交流水（public trades）",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Recent trades on a specified pair — execution-time data"
+        },
+        {
+          "id": "spot-017",
+          "prompt": "我要從錢包轉 BTC 進來，查一下入金紀錄有沒有到",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Private: deposit history"
+        },
+        {
+          "id": "spot-018",
+          "prompt": "幫我掛一張 limit 賣單：0.1 BTC @ 2,600,000",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: place LIMIT sell"
+        },
+        {
+          "id": "spot-019",
+          "prompt": "eth_twd 的 OTC 買賣價現在多少？",
+          "expected_skill": "bitopro-spot",
+          "rationale": "OTC price endpoint lives in spot"
+        },
+        {
+          "id": "spot-020",
+          "prompt": "清掉我所有 eth_usdt 的掛單",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Action: cancel all by pair"
+        }
+      ]
+    },
+    "market_intel_only": {
+      "target_accuracy": 0.95,
+      "cases": [
+        {
+          "id": "mi-001",
+          "prompt": "現在市場恐慌貪婪指數多少？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Fear & Greed macro indicator"
+        },
+        {
+          "id": "mi-002",
+          "prompt": "過去 30 天 Fear & Greed 指數走勢",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Fear & Greed historical trend"
+        },
+        {
+          "id": "mi-003",
+          "prompt": "目前 BTC dominance 多少？ETH 呢？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Global dominance indicator"
+        },
+        {
+          "id": "mi-004",
+          "prompt": "BitoPro 上架的幣當中，市值排名前 10 是哪些？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Market-cap ranking scoped to BitoPro coins"
+        },
+        {
+          "id": "mi-005",
+          "prompt": "今天 CoinGecko trending 裡面，有哪幾個是 BitoPro 有上的？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Trending filter to BitoPro listings"
+        },
+        {
+          "id": "mi-006",
+          "prompt": "上市公司持有 BTC 前 10 名",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Public-company holdings"
+        },
+        {
+          "id": "mi-007",
+          "prompt": "Companies holding ETH as treasury, give me the latest list",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Public-company ETH holdings"
+        },
+        {
+          "id": "mi-008",
+          "prompt": "SOL 最近 1 小時、24 小時、7 天、30 天漲跌幅各多少？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Multi-timeframe % change snapshot"
+        },
+        {
+          "id": "mi-009",
+          "prompt": "BitoPro 現在總共上架了哪幾個幣？給我完整清單",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Listing catalog discovery"
+        },
+        {
+          "id": "mi-010",
+          "prompt": "eth_twd 的最小下單量、最大下單量、數量精度、掛單上限各是多少？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Per-pair listing specs (catalog-level)"
+        },
+        {
+          "id": "mi-011",
+          "prompt": "今天整體市場氣氛如何？恐慌還是貪婪？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Fear & Greed — natural language"
+        },
+        {
+          "id": "mi-012",
+          "prompt": "BitoPro 有支援 DOGE 嗎？最小買多少？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Listing check + per-pair spec (catalog)"
+        },
+        {
+          "id": "mi-013",
+          "prompt": "MSTR 目前持有多少 BTC？換算成美元多少？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Public-company holding lookup"
+        },
+        {
+          "id": "mi-014",
+          "prompt": "BitoPro 上市值最低的 5 個幣（只看排名，不做建議）",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Market-cap ranking scoped to BitoPro"
+        },
+        {
+          "id": "mi-015",
+          "prompt": "Which BitoPro coins are in today's CoinGecko top 15 trending list?",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Trending intersection"
+        },
+        {
+          "id": "mi-016",
+          "prompt": "ADA 在 BitoPro 上過去 7 天漲跌 %？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Single-timeframe % change snapshot"
+        },
+        {
+          "id": "mi-017",
+          "prompt": "比特幣市佔率今天跌了嗎？",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "BTC dominance (natural phrasing)"
+        },
+        {
+          "id": "mi-018",
+          "prompt": "BitoPro 上的幣依 24h 漲幅排序",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Multi-coin ranking by % change"
+        },
+        {
+          "id": "mi-019",
+          "prompt": "LINK 現在在 BitoPro 的掛單上限、維護狀態",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Catalog-level per-pair spec + maintenance flag"
+        },
+        {
+          "id": "mi-020",
+          "prompt": "幫我看一下目前整體加密市場的總市值",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Global market indicator"
+        }
+      ]
+    },
+    "ambiguous_stress": {
+      "target_accuracy": null,
+      "cases": [
+        {
+          "id": "amb-001",
+          "prompt": "BTC 多少錢？",
+          "expected_skill": "either",
+          "rationale": "No pair, no context — could be macro (market-intel) or a quick ticker (spot). Either is acceptable; check consistency."
+        },
+        {
+          "id": "amb-002",
+          "prompt": "幫我看一下 ETH 的狀況",
+          "expected_skill": "either",
+          "rationale": "Vague 'status' — could be multi-timeframe snapshot or ticker/book."
+        },
+        {
+          "id": "amb-003",
+          "prompt": "BitoPro 上 SOL 最小可以買多少，然後幫我用市價買一單最小量",
+          "expected_skill": "bitopro-spot",
+          "rationale": "Compound: spec lookup + action. Must land on spot (action dominates); spot can internally call get_trading_pairs."
+        },
+        {
+          "id": "amb-004",
+          "prompt": "SOL 過去 30 天漲多少？如果順勢，我想掛一張 LIMIT 買單",
+          "expected_skill": "bitopro-market-intel",
+          "rationale": "Compound: snapshot then MAYBE order. Should start with market-intel; spot invoked only if user confirms."
+        },
+        {
+          "id": "amb-005",
+          "prompt": "Is the market fearful right now, and how's BTC order book looking on BitoPro?",
+          "expected_skill": "either",
+          "rationale": "Truly two-skill question (macro + execution). Acceptable to route to either and call the other as follow-up."
+        }
+      ]
+    }
+  },
+  "runbook": {
+    "how_to_run": [
+      "1. For each case, feed the prompt to a fresh Claude Code session with ONLY bitopro-spot and bitopro-market-intel installed.",
+      "2. Record which skill description the router loads first (observable from the Skill tool invocation).",
+      "3. Mark pass if selected_skill == expected_skill (or either answer for 'either' cases).",
+      "4. Compute per-bucket accuracy over spot_only and market_intel_only; require >= 0.95 on both.",
+      "5. Any miss: inspect WHY — is the losing description missing a keyword, or is the winning description over-claiming? Adjust descriptions, re-run only the failed cases."
+    ],
+    "failure_modes_to_watch": [
+      "'價格' / 'price' — spot handles real-time pair ticker, market-intel handles % change snapshot. If both claim it, spot wins execution-context phrasing.",
+      "'掛單上限' / 'min order size' / 'precision' — must route to market-intel (catalog). Spot can still internally call the same endpoint for pre-trade validation.",
+      "'K 線' / 'candlestick' — spot only (execution-time pair data)."
+    ]
+  }
+}

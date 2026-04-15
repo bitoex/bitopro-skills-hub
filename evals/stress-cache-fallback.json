@@ -1,0 +1,106 @@
+{
+  "$schema": "skill-stress-eval-v1",
+  "purpose": "Verify rule 4 (concurrency cap, session cache, fallback) behaviour of bitopro-market-intel v1.2.0. Simulated execution — not live HTTP.",
+  "scenarios": [
+    {
+      "id": "A-cache-burst",
+      "name": "Same session fires 10 consecutive '市場概況' requests",
+      "setup": {
+        "session_t0_seconds": 0,
+        "timeline": [
+          { "t": 0,  "user_prompt": "給我一份加密市場概況" },
+          { "t": 3,  "user_prompt": "再看一次市場概況" },
+          { "t": 10, "user_prompt": "市場概況有更新嗎" },
+          { "t": 20, "user_prompt": "看一下目前 overview" },
+          { "t": 35, "user_prompt": "市場整體怎樣" },
+          { "t": 45, "user_prompt": "再跑一次 market overview" },
+          { "t": 58, "user_prompt": "最新市場概況" },
+          { "t": 62, "user_prompt": "幫我再看一下概況" },
+          { "t": 65, "user_prompt": "overview 再一份" },
+          { "t": 90, "user_prompt": "最後一次看 overview" }
+        ],
+        "coingecko_response": "200 OK (always succeeds)",
+        "alternative_me_response": "200 OK",
+        "coinpaprika_response": "not called"
+      },
+      "expected": {
+        "t=0": "4 external calls: T1 (Alternative.me), T2 (CoinGecko global), T3 (CoinGecko markets with ids=...), T4 (CoinGecko trending) — per rule 2 first batch [T1,T2,T3] then T4 as follow-up",
+        "t=3..t=58": "0 external calls — all hit cache (TTL 60s). Response still shows Alternative.me + CoinGecko in footer (cache is transparent).",
+        "t=62": "T1 (TTL 60s hit @ t=62 still valid — fetched at t=0, age 62s = EXPIRED for T1/T2/T3/T4). So EXPECT re-fetch of all 4. But T1 F&G cache TTL is 60s; 62 > 60 → miss.",
+        "t=65": "0 external calls — entries just refreshed at t=62 are valid (age 3s).",
+        "t=90": "Mixed: entries at t=62 age 28s → still cached → 0 external calls.",
+        "total_external_calls_lower_bound": 8,
+        "total_external_calls_upper_bound": 10,
+        "footer_integrity": "Every response must cite Alternative.me + CoinGecko regardless of cache status (rule: 'caching is transparent')."
+      },
+      "fail_if": [
+        "Any turn between t=3 and t=58 triggers a new external request.",
+        "t=65 or t=90 triggers a new request (should be cached from t=62 refresh).",
+        "Any response omits the source footer because the data came from cache.",
+        "Total external calls > 10 (upper bound: 4 initial + 4 refresh @ t=62 + 0 or +2 margin for timing)."
+      ]
+    },
+    {
+      "id": "B-coingecko-429-fallback",
+      "name": "Mock CoinGecko returning 429 for all T2/T3/T4/T5; verify fallback paths",
+      "setup": {
+        "session_t0_seconds": 0,
+        "coingecko_response": "429 Too Many Requests, Retry-After: 45",
+        "coinpaprika_response": "200 OK",
+        "alternative_me_response": "200 OK",
+        "user_prompt_t0": "幫我看一下 5 個幣的市值排行（BTC/ETH/SOL/DOGE/ADA）+ 全球市值 + Fear & Greed",
+        "user_prompt_t5": "再來看 CoinGecko 上今天 trending 裡有哪些是 BitoPro 的",
+        "user_prompt_t10": "MSTR 持有多少 BTC"
+      },
+      "expected": {
+        "t=0 behaviour": {
+          "T1_fear_greed": "Alternative.me 200 → cached",
+          "T2_global": "CoinGecko 429 → read Retry-After=45 → ONE retry after honouring Retry-After? NO — rule says max 1 retry per tool per turn, but a 45s wait inside a single turn would block. Correct behaviour: do NOT auto-wait 45s mid-turn; go straight to fallback CoinPaprika /v1/global → 200 OK",
+          "T3_rankings": "CoinGecko 429 → fallback: call CoinPaprika /v1/tickers/{id} for 5 coins in batches of 3 → batch 1: btc-bitcoin, eth-ethereum, sol-solana (parallel); batch 2: doge-dogecoin, ada-cardano (parallel, after batch 1 completes)",
+          "footer": "📌 數據來源：Alternative.me / CoinPaprika (CoinGecko 限流已切換)"
+        },
+        "t=5 behaviour": {
+          "T4_trending": "CoinGecko 429 → no CoinPaprika fallback exists for trending → report failure for trending specifically, do NOT fabricate",
+          "user_message": "should contain '⚠️ CoinGecko trending 暫時限流' or equivalent",
+          "footer": "No external source listed for trending (failed). Overall footer cites nothing new."
+        },
+        "t=10 behaviour": {
+          "T5_public_treasury": "CoinGecko 429 → no fallback → report failure",
+          "user_message": "should say public-company holdings data unavailable"
+        },
+        "fail_if": [
+          "Any retry to CoinGecko more than once per tool per turn.",
+          "Auto-waiting 45s inside a single turn (blocks UX).",
+          "Footer claims 'CoinGecko' when only CoinPaprika returned data.",
+          "T4 trending fabricated from some other source.",
+          "T3 fallback fires > 3 CoinPaprika requests in parallel.",
+          "Fails to route 5-coin rankings through T3 batch first (cannot N+1 per-coin CoinGecko calls even without 429)."
+        ]
+      }
+    },
+    {
+      "id": "C-cache-plus-fallback-interaction",
+      "name": "Cache warm from happy path; then 429 hits on next turn",
+      "setup": {
+        "timeline": [
+          { "t": 0, "user_prompt": "市場概況", "coingecko": "200" },
+          { "t": 30, "user_prompt": "市場概況", "coingecko": "429" }
+        ]
+      },
+      "expected": {
+        "t=0": "Full fetch, cache populated for T1-T4 at t=0",
+        "t=30": "All entries still within 60s TTL → 0 external calls. CoinGecko 429 is IRRELEVANT because no request is made. Footer unchanged (Alternative.me + CoinGecko)."
+      },
+      "fail_if": [
+        "Triggers external call at t=30 despite cache hit.",
+        "Mentions 429 or fallback at t=30 (should be invisible to user since cache covered)."
+      ]
+    }
+  ],
+  "runbook": [
+    "1. For each scenario, feed the SKILL.md (rules 2 and 4 are load-bearing) plus the setup to a runtime simulator.",
+    "2. The simulator emits an ordered call log: [(tool_id, endpoint, status, via_cache: bool, time)].",
+    "3. Compare against `expected`. Any item in `fail_if` → scenario fails.",
+    "4. Pass criterion: all 3 scenarios pass."
+  ]
+}

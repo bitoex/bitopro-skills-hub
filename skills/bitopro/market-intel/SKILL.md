@@ -1,13 +1,19 @@
 ---
 name: bitopro-market-intel
 description: >
-  Crypto market intelligence strictly scoped to BitoPro-listed spot coins.
-  Use when: checking Fear & Greed index, BTC/ETH dominance, BitoPro coin
-  market-cap rankings, BitoPro coins on CoinGecko trending list, public
-  company BTC/ETH holdings, multi-timeframe price changes for a BitoPro coin,
-  or BitoPro trading-pair specs (min/max order size, precision). Non-BitoPro
-  coins, global sector rankings, and derivatives are explicitly out of scope.
-version: 1.1.0
+  Crypto market intelligence, macro indicators, and listing-catalog
+  discovery — strictly scoped to BitoPro-listed spot coins. No API key.
+  Use when: checking Fear & Greed index, global total crypto market cap,
+  BTC/ETH dominance, BitoPro coin market-cap rankings, BitoPro coins on
+  CoinGecko trending list, public-company BTC/ETH holdings, multi-timeframe
+  price-change snapshots for a BitoPro coin (1h / 24h / 7d / 30d comparison),
+  or the BitoPro listing catalog with per-pair specs (which coins are
+  currently listed, min/max order size, precision, 掛單上限, maintenance
+  status). Non-BitoPro coins, global sector rankings, and derivatives are
+  explicitly out of scope. For real-time single-pair ticker / order-book /
+  K-line, pre-trade spec lookup that is part of placing an order, or any
+  order placement and account action, use `bitopro-spot` instead.
+version: 1.2.0
 metadata:
   openclaw:
     requires:
@@ -111,11 +117,12 @@ Get market cap rankings for BitoPro-listed coins.
 - **endpoint:** `GET https://api.coingecko.com/api/v3/coins/markets`
 - **params:**
   - `vs_currency=usd` (required)
-  - `ids` — comma-separated CoinGecko IDs (use **all** BitoPro coin IDs from mapping)
+  - `ids` — comma-separated CoinGecko IDs. **Default (canonical) value for overview / rankings / 市場概況**: the full BitoPro-listed set from `references/coin-mapping.md` → `bitcoin,ethereum,tether,ripple,binancecoin,usd-coin,solana,dogecoin,cardano,tron,the-open-network,litecoin,bitcoin-cash,shiba-inu,polygon-ecosystem-token,apecoin,kaia,bito-coin`. Use this exact string (unchanged order) whenever the user request does not specify a subset — this keeps the cache key stable so repeated overview questions reuse one cached response. Only narrow `ids` when the user explicitly asks about a specific subset.
   - `order=market_cap_desc` (default) or `volume_desc`, `gecko_desc`, `gecko_asc`
   - `per_page=100` (enough for all BitoPro coins)
   - `page=1`
   - `sparkline=false`
+- **cache key:** `T3:{ids}:{order}` — since default overview always uses the same canonical `ids` string and `order=market_cap_desc`, the key is stable and shared across all "市場概況" turns in the session.
 - **returns:** Array of objects with: `id`, `symbol`, `name`, `current_price`, `market_cap`, `market_cap_rank`, `total_volume`, `price_change_percentage_24h`, `high_24h`, `low_24h`, `ath`, `ath_change_percentage`, `ath_date`
 - **data quality notes:**
   - A coin may return `market_cap_rank: null` or `market_cap: 0`. Display rank as `—` and skip the market-cap column; still show price and 24h change.
@@ -269,9 +276,10 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
 
 1. **Always filter to BitoPro coins.** When displaying rankings, trending, or any coin-specific data, only include or highlight coins available on BitoPro. Clearly state this scope to the user.
 
-2. **Combine tools for comprehensive reports.** When the user asks for a "market overview" or "市場概況", call multiple tools in parallel:
-   - Tool 1 (Fear & Greed) + Tool 2 (Global Market) + Tool 3 (Rankings)
-   - Then optionally Tool 4 (Trending, BitoPro-filtered)
+2. **Combine tools for comprehensive reports.** When the user asks for a "market overview" or "市場概況", call multiple tools in parallel **subject to the concurrency cap in rule 4** (max 3 per host):
+   - First batch (parallel): Tool 1 (Alternative.me) + Tool 2 (CoinGecko) + Tool 3 (CoinGecko) — 1 Alternative.me + 2 CoinGecko, within cap.
+   - Then if needed: Tool 4 (CoinGecko trending) as a follow-up request (do not fire together with T2+T3 since that would be 3 simultaneous CoinGecko calls plus whatever is cached — use the cache check first).
+   - Always consult the session cache (rule 4) before dispatching; cached entries count as 0 requests.
 
 3. **Format numbers for readability — 以台灣使用者為目標，禁用科學計數法**.
    - **Never output scientific notation** (`1e+08`, `6e+09`, `1.5e6`). Always convert to human-readable form.
@@ -285,8 +293,41 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
      - < 1 萬 → comma-separated integer or small decimal
 
 4. **Handle rate limits gracefully.**
-   - CoinGecko free tier: ~30 req/min. Space requests if making multiple calls.
-   - If rate limited (HTTP 429), inform user and suggest retrying in 1-2 minutes.
+
+   **Per-host budgets (shared by IP):**
+   - Alternative.me: ~60 req/min (T1)
+   - **CoinGecko free: ~30 req/min** (T2/T3/T4/T5 all share this bucket — main risk)
+   - CoinPaprika: ~10 req/sec (T6)
+   - BitoPro: 600 req/min (T7)
+
+   **Concurrency & batching rules (MUST follow):**
+   - **Max 3 concurrent requests per host.** If a single user turn needs more, serialize the extras. Never fan out > 3 parallel to CoinGecko.
+   - **T3 batch rule.** CoinGecko `/coins/markets` MUST be called **once** with `ids=a,b,c,...` (comma-separated) listing every requested coin. Never call T3 once-per-coin. If the user asks for 10 coins' rankings, it is still **one** request, not ten.
+   - **T6 fan-out cap.** If the user asks about N coins in one turn, call T6 in batches of 3 at a time (wait for each batch to finish before starting next). For N ≥ 8, prefer routing through T3 where possible since T3 already returns most of the fields in one call.
+
+   **Session-scope cache (in-memory, 60s TTL):**
+   Maintain a per-session cache of `{endpoint_url + params} → {response, fetched_at}`. Before any external call, check the cache; if a fresh entry (age < 60s) exists, reuse it and **still cite the original source in the footer** (no "cached" suffix needed — caching is transparent to the user). TTL by tool:
+   - T1 Fear & Greed: 60s (index updates ~daily)
+   - T2 Global / T3 Rankings / T4 Trending: 60s
+   - T5 Public company treasury: 300s (rarely changes)
+   - T6 Per-coin ticker: 30s (more volatile)
+   - T7 BitoPro pairs: 60s
+
+   If the cache is used for every tool in a compound request, skip all external calls — footer still lists those sources as attribution.
+
+   **On HTTP 429:**
+   - Read `Retry-After` response header if present; use that value as the wait.
+   - If no `Retry-After`, wait 60 s minimum.
+   - Do **not** auto-retry more than once per tool per turn. If the single retry also 429s, fall through to fallback (see next rule) or degrade gracefully.
+   - Surface the rate-limit event to the user: `⚠️ CoinGecko 暫時限流，等 {n} 秒後可重試 / 已切換至備援來源`.
+
+   **Cross-source fallback (triggered on 429 or 5xx):**
+   - **T2 Global fallback:** `GET https://api.coinpaprika.com/v1/global` → map `market_cap_usd` → `total_market_cap.usd`, `bitcoin_dominance_percentage` → `market_cap_percentage.btc`. ETH dominance not directly available on CoinPaprika; mark as `—` rather than fabricating.
+   - **T3 Rankings fallback:** for each missing coin, call `GET https://api.coinpaprika.com/v1/tickers/{coinpaprika_id}` (use the mapping in `references/coin-mapping.md`). Space these per the T6 fan-out cap (3 at a time). Fields: `quotes.USD.price`, `quotes.USD.market_cap`, `quotes.USD.percent_change_24h`, `rank`.
+   - **T6 fallback:** CoinPaprika is already T6's primary source — on 429, no symmetric fallback. Wait for `Retry-After` and inform user.
+   - **T4 / T5:** CoinGecko-only, **no fallback exists**. On 429 report failure for that tool and still deliver whatever other data succeeded.
+
+   **Footer attribution when fallback fires:** list the source **actually used**. Example: CoinGecko 429 → CoinPaprika succeeds → footer shows `📌 數據來源：CoinPaprika (CoinGecko 限流已切換)`. Never list a source that did not return data.
 
 5. **Source attribution and disclaimer footer.** Responses displaying market-data (Tools 1-6) MUST end with the footer. List only the external sources actually queried; do not list BitoPro. Tool 7 alone returns no footer.
 
@@ -334,8 +375,8 @@ Accept: application/json
 | HTTP Code | Action |
 |-----------|--------|
 | 200 | Success — parse and display |
-| 429 | Rate limited — inform user, retry after delay |
-| 5xx | Server error — skip this source, use others |
+| 429 | Rate limited — honour `Retry-After`, attempt cross-source fallback (see rule 4), inform user if no data available |
+| 5xx | Server error — attempt cross-source fallback (see rule 4), skip if no alternative |
 
 ## File Reference
 

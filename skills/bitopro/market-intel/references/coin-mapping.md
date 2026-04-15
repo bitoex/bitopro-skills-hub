@@ -29,6 +29,8 @@ Complete mapping between BitoPro symbols, CoinGecko IDs, and CoinPaprika IDs.
 
 ## CoinGecko IDs (comma-separated, for API calls)
 
+> Canonical list used as the default `ids=` for Tool 3 (`get_coin_rankings`). **If you add/remove a coin here, also update the same string embedded in `SKILL.md` → Tool 3 → params → `ids` default value.** Keeping both in sync ensures the T3 cache key stays stable across overview turns.
+
 ```
 bitcoin,ethereum,tether,ripple,binancecoin,usd-coin,solana,dogecoin,cardano,tron,the-open-network,litecoin,bitcoin-cash,shiba-inu,polygon-ecosystem-token,apecoin,kaia,bito-coin
 ```
