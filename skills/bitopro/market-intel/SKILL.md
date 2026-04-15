@@ -13,12 +13,17 @@ description: >
   explicitly out of scope. For real-time single-pair ticker / order-book /
   K-line, pre-trade spec lookup that is part of placing an order, or any
   order placement and account action, use `bitopro-spot` instead.
-version: 1.2.0
+version: 1.3.0
 metadata:
   openclaw:
     requires:
       env: []
     primaryEnv: null
+    env:
+      - name: COINGECKO_API_KEY
+        description: "Optional CoinGecko Demo API key (free tier, signup at coingecko.com/en/developers/dashboard). When set, adds header `x-cg-demo-api-key` to CoinGecko requests and moves the 30 req/min budget from the shared-IP bucket to your own per-key bucket. Recommended for shared-IP deployments (office network, VPN, multi-user testing)."
+        required: false
+        sensitive: true
 category: crypto-market-data
 emoji: "📊"
 homepage: https://github.com/bitoex/bitopro-skills-hub
@@ -31,12 +36,30 @@ You are an AI agent that provides cryptocurrency market intelligence **strictly 
 
 **Out of scope (do NOT answer with this skill):** global sector/category performance, non-BitoPro trending coins, non-BitoPro coin quotes, derivatives/futures data. If asked, respond that the coin/topic is outside BitoPro spot market scope.
 
+## Setup
+
+This skill works **out of the box with no credentials** — every data source has a keyless public tier.
+
+### Optional: `COINGECKO_API_KEY` (CoinGecko Demo key)
+
+When multiple users share one outbound IP (office network, corporate VPN, multi-user testing) the keyless CoinGecko tier (~30 req/min per IP) becomes a bottleneck. Set this env var to switch that tool to CoinGecko's **Demo tier** — same endpoints, but the 30 req/min budget is counted against your personal key instead of the shared IP.
+
+1. Sign up (free) at https://www.coingecko.com/en/developers/dashboard → create a **Demo** key.
+2. Set the env var before launching the skill:
+   ```bash
+   export COINGECKO_API_KEY="CG-xxxxxxxxxxxxxxxxxxxxxxxx"
+   ```
+3. That's it — the skill detects the key automatically and adds the `x-cg-demo-api-key` header to every CoinGecko request. No behavioural change otherwise.
+
+Without the key, the skill still works — it just falls back to Public-tier budget plus the built-in CoinPaprika fallback on 429.
+
 ## Data Sources
 
 | Source | Rate Limit | Used For |
 |--------|------------|----------|
 | [Alternative.me](https://alternative.me/crypto/fear-and-greed-index/) | 60 req/min, no key | Fear & Greed Index |
-| [CoinGecko](https://www.coingecko.com/) (free tier) | ~30 req/min, no key | Global market, rankings, trending, categories, company holdings |
+| [CoinGecko](https://www.coingecko.com/) (Public, no key) | ~30 req/min, shared per IP | Global market, rankings, trending, categories, company holdings |
+| [CoinGecko](https://www.coingecko.com/en/developers/dashboard) (Demo, **optional** `COINGECKO_API_KEY`) | 30 req/min **per key**, 10k calls/month | Same endpoints as Public, but budget is per-key instead of per-IP — recommended when multiple users share one outbound IP |
 | [CoinPaprika](https://coinpaprika.com/) | ~10 req/sec, no key | Multi-timeframe coin details, ATH data |
 | [BitoPro](https://api.bitopro.com/v3) | 600 req/min, no key | Dynamic trading pair list |
 
@@ -294,9 +317,10 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
 
 4. **Handle rate limits gracefully.**
 
-   **Per-host budgets (shared by IP):**
+   **Per-host budgets (shared by IP unless noted):**
    - Alternative.me: ~60 req/min (T1)
-   - **CoinGecko free: ~30 req/min** (T2/T3/T4/T5 all share this bucket — main risk)
+   - **CoinGecko Public: ~30 req/min** (T2/T3/T4/T5 share this bucket — main risk under shared IP)
+   - **CoinGecko Demo (if `COINGECKO_API_KEY` set): 30 req/min per key + 10k calls/month** — budget moves from IP-shared to key-scoped, so multiple users behind one IP each get their own 30/min. All rate-limit rules below still apply unchanged; only the bucket changes.
    - CoinPaprika: ~10 req/sec (T6)
    - BitoPro: 600 req/min (T7)
 
@@ -366,9 +390,17 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
 All requests should include:
 
 ```
-User-Agent: bitopro-market-intel/1.1.0 (Skill)
+User-Agent: bitopro-market-intel/1.3.0 (Skill)
 Accept: application/json
 ```
+
+**Conditional header (CoinGecko requests only, when `COINGECKO_API_KEY` env is set):**
+
+```
+x-cg-demo-api-key: $COINGECKO_API_KEY
+```
+
+Apply this header to every CoinGecko endpoint (T2/T3/T4/T5). Do NOT apply it to Alternative.me, CoinPaprika, or BitoPro. When the env var is unset or empty, omit the header and continue using the Public tier (keyless). The header presence alone changes nothing about the endpoint path — it only tells CoinGecko to bill against the user's per-key quota instead of the anonymous per-IP bucket.
 
 ## Error Handling
 
