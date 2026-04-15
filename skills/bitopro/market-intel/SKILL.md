@@ -289,7 +289,7 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
 **Out-of-mapping pairs**: if a pair's `base` is not in the BitoPro coin mapping above, exclude from the main table and note it separately under "⚠️ 不在映射內".
 
 **Number formatting (CRITICAL — user-facing display MUST be human-readable)**:
-- **Never use scientific notation** (`1e+08`, `6e+09`) — always convert to 中文 unit notation.
+- **Never use scientific notation** (`1e+08`, `6e+09`) — always convert to human-readable unit notation (億 / 萬 etc.).
 - Amounts ≥ 1 億 (100,000,000): display as `1 億`, `55 億`, `2.5 億`
 - Amounts ≥ 1 萬 (10,000) and < 1 億: display as `20 萬`, `1,000 萬`, `48.03 萬`
 - Amounts < 1 萬: comma-separated integer (`200`, `5,000`) or decimal (`0.0001`, `0.01`)
@@ -304,7 +304,7 @@ kaia_twd    ✅          1 KAIA        20 萬 KAIA     100 TWD     2       4    
    - Then if needed: Tool 4 (CoinGecko trending) as a follow-up request (do not fire together with T2+T3 since that would be 3 simultaneous CoinGecko calls plus whatever is cached — use the cache check first).
    - Always consult the session cache (rule 4) before dispatching; cached entries count as 0 requests.
 
-3. **Format numbers for readability — 以台灣使用者為目標，禁用科學計數法**.
+3. **Format numbers for readability — 方便用戶直觀閱讀，數字一律不採用科學記號表示**.
    - **Never output scientific notation** (`1e+08`, `6e+09`, `1.5e6`). Always convert to human-readable form.
    - **Fiat / market cap (USD)**: `$1.49兆`, `$2855.97億`, `$9075.13萬`, `$190`
    - **Crypto amounts / order sizes**: `1 億 BTC`, `55 億 SHIB`, `20 萬 KAIA`, `100 TWD`, `0.0001 BTC`
