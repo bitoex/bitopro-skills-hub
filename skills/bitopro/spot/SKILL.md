@@ -1,7 +1,7 @@
 ---
 name: bitopro-spot
 description: 'BitoPro exchange API wrapper for executing spot trades and managing your account. Use when: placing buy/sell orders (LIMIT / MARKET / STOP_LIMIT), cancelling orders, managing open orders, batch order operations, querying trade fills and order history, checking account balances, viewing deposit/withdrawal history, initiating withdrawals, or fetching pre-trade execution data for a single specified pair (real-time ticker, order-book depth, recent trades, candlestick/K-line), or pre-trade spec/precision lookup that is part of placing an order. Supports TWD (New Taiwan Dollar) fiat trading pairs. Requires API key. Also supports session-aware order execution when invoked by strategy skills via the bitopro-trade-guard hook. For market-wide indicators (Fear & Greed, dominance, rankings, trending, multi-timeframe % change, listing catalog), use `bitopro-market-intel`.'
-version: 2.5.0
+version: 2.5.1
 metadata: {"openclaw":{"pairedHook":"bitopro-trade-guard","category":"crypto-trading","emoji":"📈","requires":{"env":["BITOPRO_API_KEY","BITOPRO_API_SECRET","BITOPRO_EMAIL"]},"primaryEnv":"BITOPRO_API_KEY","env":[{"name":"BITOPRO_API_KEY","description":"API Key from BitoPro dashboard","required":true,"sensitive":true},{"name":"BITOPRO_API_SECRET","description":"API Secret for HMAC-SHA384 signing","required":true,"sensitive":true},{"name":"BITOPRO_EMAIL","description":"BitoPro registered email (used as identity in GET/DELETE payloads)","required":true,"sensitive":false},{"name":"BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE","description":"Optional. Global single-order quote cap (in TWD) applied outside approved strategy sessions. Set to 10000 for OpenClaw safety experiments, leave unset (or 0) for unlimited. Strategy sessions use their own max_single_order_quote inside session.","required":false,"sensitive":false}]}}
 homepage: https://github.com/bitoex/bitopro-skills-hub
 license: MIT
@@ -266,6 +266,17 @@ Private endpoints require HMAC-SHA384 signing. Headers: `X-BITOPRO-APIKEY`, `X-B
 6. **Withdrawal safety.** Always display amount, destination address, fee, and network/protocol for user confirmation before executing `create_withdraw`. Withdraw addresses must be pre-configured on the BitoPro website.
 7. **Batch operations.** Batch create supports max 10 orders. Always show the full list of orders/cancellations for user confirmation.
 8. **Session-aware execution.** When `event.context.strategySession` exists and the `bitopro-trade-guard` hook returns `ALLOW_IN_SESSION`, proceed without asking for re-confirmation. See [Strategy Session Awareness](#strategy-session-awareness) for the full decision table.
+9. **Active strategy banner.** When the user's request is trade-related (checking price, account, positions, placing orders, strategy status), prepend a concise **banner before** answering the main request **if any** of the following is true:
+    - `event.context.strategySession` exists with `status ∈ {approved, running}` and `session_expiry_at` has not passed
+    - `get_open_orders` returns at least one order with `clientId === 2147483647` (skill-executed marker)
+
+    Banner content (use the minimum that applies): active session count, skill-executed open order count and their total undistributed TWD quote, next scheduled action time if the session exposes `next_trigger_at`, and a one-line control hint (e.g., `say 'status' for details, 'pause all' to pause, 'stop all' to terminate`).
+
+    **Filter discipline.** Orders with `clientId !== 2147483647` are NOT skill orders — they may be from the exchange's built-in strategies (e.g., web-UI grid bot), third-party bots, or the user's own API scripts. Do NOT include them in the banner. If the `get_open_orders` response does not include a `clientId` field at all, fall back to the session-state branch only; do NOT assume all open orders are skill orders.
+
+    **Safety net.** If `strategySession.status ∈ {approved, running}` AND no open order has `clientId === 2147483647` AND `risk_state.current_step >= policy.max_steps`, the session has likely completed but the strategy skill forgot to mark it `stopped`. Instead of a normal banner, ask: `策略 {strategy_session_id} 已執行完所有步數但尚未標記結束，是否確認結束這個 session？` and offer to close it.
+
+    Show the banner at most once per conversation turn. Do not repeat if the hook has already injected a `REMIND` guardrail this turn.
 
 ## Strategy Session Awareness
 
@@ -321,10 +332,10 @@ The fallback action must be echoed back to the user at session-start summary so 
 All requests must include these headers for tracking:
 
 ```
-User-Agent: bitopro-spot/2.5.0 (Skill)
+User-Agent: bitopro-spot/2.5.1 (Skill)
 X-Execution-Source: Claude-Skill
 X-Skill-Name: bitopro/spot
-X-Skill-Version: 2.5.0
+X-Skill-Version: 2.5.1
 X-Client-Type: AI-Agent
 ```
 
