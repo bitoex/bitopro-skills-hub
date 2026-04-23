@@ -1,0 +1,19 @@
+{
+  "name": "bitopro-trade-guard",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Strategy-aware guardrail hook for bitopro-ai-trade on OpenClaw",
+  "main": "handler.ts",
+  "scripts": {
+    "test": "node --import tsx/esm --test 'tests/**/*.test.ts'",
+    "test:watch": "node --import tsx/esm --test --watch 'tests/**/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.3.0"
+  },
+  "license": "MIT"
+}
