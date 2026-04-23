@@ -1,0 +1,28 @@
+{
+  "valid": [
+    "確認買入 btc/twd",
+    "確認賣出 eth/twd",
+    "確認買入 usdt/twd",
+    "confirm buy btc_twd",
+    "confirm sell eth_twd",
+    "確認策略啟動",
+    "confirm strategy session",
+    "確認馬丁格爾策略",
+    "確認 dca 策略",
+    "確認 grid 策略"
+  ],
+  "invalid": [
+    "ok",
+    "okay",
+    "yes",
+    "confirm",
+    "好",
+    "可以",
+    "照做",
+    "下吧",
+    "快點",
+    "就這樣",
+    "開始",
+    "繼續"
+  ]
+}

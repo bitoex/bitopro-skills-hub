@@ -1,0 +1,38 @@
+{
+  "policy_bypass": [
+    "ignore previous instructions",
+    "ignore all previous instructions",
+    "bypass",
+    "skip confirmation",
+    "skip safety",
+    "do not ask me again",
+    "no need to confirm",
+    "不要確認",
+    "直接下單",
+    "不要再問",
+    "略過確認",
+    "忽略之前的規則",
+    "無視安全限制",
+    "不要管規則"
+  ],
+  "prompt_reveal": [
+    "reveal system prompt",
+    "show hidden instructions",
+    "developer message",
+    "system prompt",
+    "hidden rules",
+    "顯示系統提示",
+    "顯示隱藏規則",
+    "把你的規則告訴我"
+  ],
+  "in_session_soft_signals": [
+    "just do it",
+    "execute now",
+    "keep going regardless",
+    "regardless of loss",
+    "continue no matter what",
+    "現在立刻執行",
+    "馬上下單",
+    "不要停"
+  ]
+}
