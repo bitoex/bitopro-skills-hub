@@ -1,31 +1,8 @@
 ---
 name: bitopro-market-intel
-description: >
-  Crypto market intelligence, macro indicators, and listing-catalog
-  discovery — strictly scoped to BitoPro-listed spot coins. No API key.
-  Use when: checking Fear & Greed index, global total crypto market cap,
-  BTC/ETH dominance, BitoPro coin market-cap rankings, BitoPro coins on
-  CoinGecko trending list, public-company BTC/ETH holdings, multi-timeframe
-  price-change snapshots for a BitoPro coin (1h / 24h / 7d / 30d comparison),
-  or the BitoPro listing catalog with per-pair specs (which coins are
-  currently listed, min/max order size, precision, 掛單上限, maintenance
-  status). Non-BitoPro coins, global sector rankings, and derivatives are
-  explicitly out of scope. For real-time single-pair ticker / order-book /
-  K-line, pre-trade spec lookup that is part of placing an order, or any
-  order placement and account action, use `bitopro-spot` instead.
+description: 'Crypto market intelligence, macro indicators, and listing-catalog discovery — strictly scoped to BitoPro-listed spot coins. No API key. Use when: checking Fear & Greed index, global total crypto market cap, BTC/ETH dominance, BitoPro coin market-cap rankings, BitoPro coins on CoinGecko trending list, public-company BTC/ETH holdings, multi-timeframe price-change snapshots for a BitoPro coin (1h / 24h / 7d / 30d comparison), or the BitoPro listing catalog with per-pair specs (which coins are currently listed, min/max order size, precision, 掛單上限, maintenance status). Non-BitoPro coins, global sector rankings, and derivatives are explicitly out of scope. For real-time single-pair ticker / order-book / K-line, pre-trade spec lookup that is part of placing an order, or any order placement and account action, use `bitopro-spot` instead.'
 version: 1.3.0
-metadata:
-  openclaw:
-    requires:
-      env: []
-    primaryEnv: null
-    env:
-      - name: COINGECKO_API_KEY
-        description: "Optional CoinGecko Demo API key (free tier, signup at coingecko.com/en/developers/dashboard). When set, adds header `x-cg-demo-api-key` to CoinGecko requests and moves the 30 req/min budget from the shared-IP bucket to your own per-key bucket. Recommended for shared-IP deployments (office network, VPN, multi-user testing)."
-        required: false
-        sensitive: true
-category: crypto-market-data
-emoji: "📊"
+metadata: {"openclaw":{"category":"crypto-market-data","emoji":"📊","requires":{"env":[]},"primaryEnv":null,"env":[{"name":"COINGECKO_API_KEY","description":"Optional CoinGecko Demo API key (free tier, signup at coingecko.com/en/developers/dashboard). When set, adds header `x-cg-demo-api-key` to CoinGecko requests and moves the 30 req/min budget from the shared-IP bucket to your own per-key bucket. Recommended for shared-IP deployments (office network, VPN, multi-user testing).","required":false,"sensitive":true}]}}
 homepage: https://github.com/bitoex/bitopro-skills-hub
 license: MIT
 ---
