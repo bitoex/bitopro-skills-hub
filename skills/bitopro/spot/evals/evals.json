@@ -394,6 +394,98 @@
         "Agent requests explicit confirmation that echoes the exact amount (e.g., 'confirm 15000 TWD BTC buy')",
         "Once the user confirms with the exact amount, the agent proceeds via create_order"
       ]
+    },
+    {
+      "id": 23,
+      "category": "banner_shown_with_active_session",
+      "prompt": "現在 BTC/TWD 行情如何？",
+      "context": {
+        "strategySession": {
+          "strategy_session_id": "s-dca-active",
+          "status": "running",
+          "approved_at": "2026-04-22T08:00:00Z",
+          "policy": {
+            "max_steps": 30,
+            "max_total_exposure_quote": 90000,
+            "max_single_order_quote": 3000,
+            "max_daily_loss_quote": 5000,
+            "session_expiry_at": "2026-05-22T08:00:00Z",
+            "on_escalation_timeout": { "timeout_minutes": 30, "action": "HALT_NO_NEW" }
+          },
+          "risk_state": {
+            "current_step": 8,
+            "total_exposure_quote": 24000,
+            "realized_pnl_quote": 0,
+            "last_activity_at": "2026-04-23T00:00:00Z"
+          },
+          "next_trigger_at": "2026-04-24T09:00:00Z"
+        }
+      },
+      "open_orders_response": [
+        { "id": "12345", "pair": "btc_twd", "clientId": 2147483647, "remainingAmount": "0.001", "price": "2800000" }
+      ],
+      "expected_output": "Before answering the market-price question, agent prepends a banner noting the active DCA session (current_step 8/30, 24000/90000 TWD exposure, next trigger 2026-04-24 09:00) and 1 skill-executed open order. Then proceeds to call get_tickers and answer the price question normally.",
+      "expectations": [
+        "Agent prepends a banner BEFORE the price information",
+        "Banner mentions 1 active strategy session",
+        "Banner mentions next_trigger_at 2026-04-24 09:00",
+        "Banner mentions 1 skill-executed open order with the undistributed amount",
+        "Agent then calls get_tickers to answer the original price question",
+        "Banner is shown only once in this turn"
+      ]
+    },
+    {
+      "id": 24,
+      "category": "banner_filters_non_skill_orders",
+      "prompt": "我目前在 BitoPro 有什麼部位？",
+      "context": {},
+      "open_orders_response": [
+        { "id": "99001", "pair": "btc_twd", "clientId": 0, "remainingAmount": "0.01", "price": "2750000" },
+        { "id": "99002", "pair": "eth_twd", "clientId": 12345, "remainingAmount": "0.5", "price": "85000" },
+        { "id": "99003", "pair": "btc_twd", "clientId": 2147483647, "remainingAmount": "0.001", "price": "2800000" }
+      ],
+      "expected_output": "Agent must NOT flag orders with clientId 0 (web-UI manual) or clientId 12345 (self-written API) as skill-executed. Banner mentions only 1 skill-executed open order (clientId 2147483647). The agent still reports all 3 open orders to the user as part of the answer (because they asked about positions), but labels the 2 non-skill orders clearly as 'manual / external' not 'skill-executed'.",
+      "expectations": [
+        "Banner shows 1 skill-executed open order (not 3)",
+        "Banner does NOT label clientId 0 or clientId 12345 orders as skill-executed",
+        "Agent's answer about positions distinguishes skill-executed vs manual/external orders",
+        "Agent does not assume clientIds it has not seen before are skill orders"
+      ]
+    },
+    {
+      "id": 25,
+      "category": "banner_safety_net_completed_session",
+      "prompt": "BTC 現在多少？",
+      "context": {
+        "strategySession": {
+          "strategy_session_id": "s-completed-but-running",
+          "status": "running",
+          "approved_at": "2026-04-20T00:00:00Z",
+          "policy": {
+            "max_steps": 5,
+            "max_total_exposure_quote": 15000,
+            "max_single_order_quote": 3000,
+            "max_daily_loss_quote": 3000,
+            "session_expiry_at": "2026-05-20T00:00:00Z",
+            "on_escalation_timeout": { "timeout_minutes": 30, "action": "HALT_NO_NEW" }
+          },
+          "risk_state": {
+            "current_step": 5,
+            "total_exposure_quote": 15000,
+            "realized_pnl_quote": 200,
+            "last_activity_at": "2026-04-22T10:00:00Z"
+          }
+        }
+      },
+      "open_orders_response": [],
+      "expected_output": "Session claims status=running but current_step=5=max_steps AND no skill-executed open orders exist. This is the safety-net condition: session has likely completed but the strategy skill forgot to mark it stopped. Agent shows the safety-net prompt asking whether to close the session, then answers the BTC price question.",
+      "expectations": [
+        "Agent detects the mismatch (status=running but steps exhausted and no open orders)",
+        "Agent shows the safety-net message: '策略 s-completed-but-running 已執行完所有步數但尚未標記結束，是否確認結束這個 session？'",
+        "Agent does NOT show a normal running-session banner",
+        "Agent still answers the BTC price question after the safety-net prompt",
+        "If the user confirms closure, agent notes the session should be marked stopped (via the strategy skill or manual clean-up)"
+      ]
     }
   ]
 }
