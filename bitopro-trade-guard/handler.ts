@@ -83,20 +83,34 @@ function normalize(text: string): string {
   return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function includesAny(text: string, patterns: string[]): boolean {
+function includesAny(text: string, patterns: readonly string[]): boolean {
   return patterns.some((p) => text.includes(p.toLowerCase()));
 }
 
-function countMatches(text: string, patterns: string[]): number {
+function countMatches(text: string, patterns: readonly string[]): number {
   return patterns.filter((p) => text.includes(p.toLowerCase())).length;
 }
 
+// BitoPro spot listing — 18 base coins. Used by both `looksLikeTrade` and
+// `hasCoreFields` so the hook recognises any BitoPro-listed coin in user text.
+// Keep in sync with `skills/bitopro/market-intel/references/coin-mapping.md`.
+// Note: `matic` is included alongside `pol` because legacy English text still
+// uses the old MATIC ticker for what BitoPro lists as POL.
+const BITOPRO_ASSET_PATTERNS: readonly string[] = [
+  // Tickers (lowercase — includesAny lowercases the input via normalize)
+  "btc", "eth", "usdt", "usdc", "xrp", "sol", "bnb", "doge", "ada",
+  "trx", "ton", "ltc", "bch", "shib", "pol", "matic", "ape", "kaia", "bito",
+  // 繁中名稱
+  "比特幣", "以太幣", "以太坊", "泰達幣", "瑞波", "索拉納", "幣安幣",
+  "狗狗幣", "狗幣", "卡爾達諾", "波場", "萊特幣", "比特幣現金",
+  "柴犬幣", "柴犬"
+];
+
 function looksLikeTrade(text: string): boolean {
   return includesAny(text, [
-    "買", "賣", "buy", "sell", "下單", "order",
-    "btc", "eth", "usdt", "usdc", "sol", "ltc", "doge",
-    "比特幣", "以太幣", "泰達幣", "萊特幣", "狗狗幣", "狗幣",
-    "twd", "策略", "martingale", "dca", "grid", "網格", "馬丁格爾", "定投"
+    "買", "賣", "buy", "sell", "下單", "order", "twd",
+    "策略", "martingale", "dca", "grid", "網格", "馬丁格爾", "定投",
+    ...BITOPRO_ASSET_PATTERNS
   ]);
 }
 
@@ -111,10 +125,7 @@ function looksLikeStrategy(text: string): boolean {
 
 function hasCoreFields(text: string): boolean {
   const hasAction = includesAny(text, ["買", "賣", "buy", "sell"]);
-  const hasAsset = includesAny(text, [
-    "btc", "eth", "usdt", "usdc", "sol", "ltc", "doge",
-    "比特幣", "以太幣", "泰達幣", "萊特幣", "狗狗幣", "狗幣"
-  ]);
+  const hasAsset = includesAny(text, BITOPRO_ASSET_PATTERNS);
   const hasAmount =
     /\d/.test(text) ||
     includesAny(text, ["一萬", "一千", "五百", "全部", "所有", "一半", "half", "%"]);
@@ -158,6 +169,15 @@ function getPendingStep(event: any): PendingStep | null {
   return event.context?.pendingStep || null;
 }
 
+// H2 fix: a valid pendingStep must declare a finite positive size_quote.
+// `0`, missing, NaN, Infinity, or a non-number all count as invalid — they would
+// make `insideApprovedBoundary` silently skip the single-order-cap check.
+function hasFinitePositiveSize(step: PendingStep | null): boolean {
+  if (!step) return false;
+  const size = step.size_quote;
+  return typeof size === "number" && Number.isFinite(size) && size > 0;
+}
+
 function sessionIsFresh(session: StrategySession): boolean {
   if (!session?.status || !["approved", "running"].includes(session.status)) return false;
 
@@ -190,8 +210,11 @@ function insideApprovedBoundary(
   const stepOk = projectedStep <= session.policy.max_steps;
   const totalOk = projectedExposure <= session.policy.max_total_exposure_quote;
   const singleOk = pendingSize === 0 || pendingSize <= session.policy.max_single_order_quote;
-  const pnlOk =
-    Math.abs(session.risk_state.realized_pnl_quote ?? 0) <= session.policy.max_daily_loss_quote;
+  // H4 fix: only losses count against the daily loss cap. Profit must not trip
+  // the breaker. realized_pnl_quote convention: negative = loss, positive = gain.
+  // Example: max_daily_loss_quote = 5000 → block when realized_pnl_quote < -5000.
+  const realizedPnl = session.risk_state.realized_pnl_quote ?? 0;
+  const pnlOk = realizedPnl >= -session.policy.max_daily_loss_quote;
 
   return stepOk && totalOk && singleOk && pnlOk;
 }
@@ -227,19 +250,47 @@ export function classify(
     return { decision: "PAUSE", reason: "duplicate_execution_suspected" };
   }
 
-  // 3. Approved session that passes look-ahead boundary check.
-  //    This runs BEFORE the soft-signal check, so polite in-session
-  //    continuation ("繼續", "keep going", "不要停") is not misread as coercion.
-  if (session && insideApprovedBoundary(session, pendingStep)) {
-    return { decision: "ALLOW_IN_SESSION", reason: "inside_approved_strategy_boundary" };
-  }
-
-  // 3.5. Session exists but is NOT in boundary (expired, over-step, over-exposure,
-  //      or projected breach from pendingStep). Do not silently fall through to
-  //      "not trade-related" — the agent needs to surface this so the user can
-  //      re-approve, end the session, or adjust.
+  // 3. Active session handling — fast-path, visibility, or escalation.
+  //
+  //    H1 + H2 fix: ALLOW_IN_SESSION is reserved for actual order execution
+  //    (preprocessed event with a valid pendingStep that passes look-ahead).
+  //    Other in-session traffic (received user messages, preprocessed without
+  //    a declared pending step) returns REMIND — the agent should surface a
+  //    concise active-strategy reminder but NOT auto-advance.
+  //    Stale sessions ESCALATE so the user can re-approve / end the session.
+  //
+  //    This runs BEFORE the soft-signal check, so polite in-session continuation
+  //    ("繼續", "keep going", "不要停") is not misread as coercion.
   if (session) {
-    return { decision: "ESCALATE", reason: "session_present_but_not_in_boundary" };
+    if (!sessionIsFresh(session)) {
+      return { decision: "ESCALATE", reason: "session_present_but_not_fresh" };
+    }
+
+    // Fast-path: this is a real execution attempt, declared correctly, in boundary.
+    if (
+      event.action === "preprocessed" &&
+      hasFinitePositiveSize(pendingStep) &&
+      insideApprovedBoundary(session, pendingStep)
+    ) {
+      return { decision: "ALLOW_IN_SESSION", reason: "inside_approved_strategy_boundary" };
+    }
+
+    // Preprocessed with a pendingStep that exists but is invalid (NaN/0/missing size)
+    // — the skill declared a step but did so incorrectly. ESCALATE so the agent sees it.
+    if (event.action === "preprocessed" && pendingStep && !hasFinitePositiveSize(pendingStep)) {
+      return { decision: "ESCALATE", reason: "pending_step_size_invalid_or_missing" };
+    }
+
+    // Preprocessed with a valid pendingStep but boundary fails (over-step, over-exposure,
+    // single-order cap breach, daily-loss breach).
+    if (event.action === "preprocessed" && hasFinitePositiveSize(pendingStep)) {
+      return { decision: "ESCALATE", reason: "session_present_but_not_in_boundary" };
+    }
+
+    // Otherwise: fresh session, but this event is not an order execution attempt
+    // (received user message, or preprocessed for a query/cancel that doesn't carry
+    // pendingStep). Surface a visibility reminder rather than auto-allowing.
+    return { decision: "REMIND", reason: "active_session_visibility_reminder" };
   }
 
   // 3.75. Outside session + single-order global cap breach.
@@ -321,6 +372,27 @@ function buildGuardrailMessage(result: Decision): string {
   }
 }
 
+// M5 fix: scrub PII from user text before writing to the audit log.
+// Audit logs are kept for compliance review; we want decision context but
+// must NOT persist withdraw addresses, emails, API tokens, or wallet seeds.
+// Trade amounts are intentionally preserved (they are needed to verify the
+// hook's cap / boundary decisions in retrospect).
+export function scrubAuditText(text: string): string {
+  if (!text) return text;
+  let scrubbed = text;
+  // EVM-style addresses (0x + 40 hex)
+  scrubbed = scrubbed.replace(/0x[a-fA-F0-9]{40}/g, "<evm_addr>");
+  // BTC bech32 addresses (bc1 + 6-62 alphanumeric)
+  scrubbed = scrubbed.replace(/\bbc1[a-zA-Z0-9]{6,62}\b/g, "<btc_addr>");
+  // BTC legacy P2PKH/P2SH (1/3 + 25-34 base58 chars). Heuristic — may catch other long base58 strings.
+  scrubbed = scrubbed.replace(/\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/g, "<btc_addr>");
+  // Email addresses
+  scrubbed = scrubbed.replace(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/gi, "<email>");
+  // Long alphanumeric tokens (≥ 30 chars, may contain underscores) — likely API keys / wallet seeds / mnemonics
+  scrubbed = scrubbed.replace(/\b[a-zA-Z0-9_]{30,}\b/g, "<long_token>");
+  return scrubbed;
+}
+
 async function appendAudit(event: any, result: Decision, text: string): Promise<boolean> {
   try {
     const line = JSON.stringify({
@@ -332,7 +404,7 @@ async function appendAudit(event: any, result: Decision, text: string): Promise<
       executionAttemptId: event.context?.executionAttemptId || null,
       decision: result.decision,
       reason: result.reason,
-      text: text.slice(0, 500)
+      text: scrubAuditText(text).slice(0, 500)
     });
     await fs.mkdir(path.dirname(AUDIT_LOG), { recursive: true });
     await fs.appendFile(AUDIT_LOG, line + "\n", "utf8");

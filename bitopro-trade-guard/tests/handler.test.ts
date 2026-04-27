@@ -5,7 +5,8 @@ import {
   loadRules,
   sessionIsFresh,
   insideApprovedBoundary,
-  attemptsToAlterPolicy
+  attemptsToAlterPolicy,
+  scrubAuditText
 } from "../handler.ts";
 import {
   makeEvent,
@@ -29,6 +30,36 @@ describe("classify / single-order mode", () => {
 
   test("buy english complete → ALLOW", () => {
     const result = classify("buy 5000 twd of eth", rules, null, null, makeEvent());
+    assert.equal(result.decision, "ALLOW");
+  });
+
+  test("H3 fix: XRP trade request → ALLOW (was CLARIFY because XRP missing from asset list)", () => {
+    const result = classify("買 1000 twd xrp", rules, null, null, makeEvent());
+    assert.equal(
+      result.decision,
+      "ALLOW",
+      "XRP is BitoPro-listed; must be recognised in core-fields check"
+    );
+  });
+
+  test("H3 fix: BNB trade request → ALLOW", () => {
+    const result = classify("buy 2000 twd of bnb", rules, null, null, makeEvent());
+    assert.equal(result.decision, "ALLOW");
+  });
+
+  test("H3 fix: ADA / TRX / TON / BCH / SHIB / POL / APE / KAIA / BITO all recognised", () => {
+    for (const sym of ["ada", "trx", "ton", "bch", "shib", "pol", "ape", "kaia", "bito"]) {
+      const result = classify(`買 1000 twd ${sym}`, rules, null, null, makeEvent());
+      assert.equal(
+        result.decision,
+        "ALLOW",
+        `${sym.toUpperCase()} (BitoPro-listed) must be recognised, got ${result.decision}`
+      );
+    }
+  });
+
+  test("H3 fix: legacy MATIC ticker (now POL on BitoPro) still recognised", () => {
+    const result = classify("buy 1000 twd matic", rules, null, null, makeEvent());
     assert.equal(result.decision, "ALLOW");
   });
 
@@ -194,13 +225,64 @@ describe("classify / strategy session mode", () => {
     });
     const result = classify("繼續", rules, session, pending(3000), makeEvent());
     assert.equal(result.decision, "ESCALATE");
-    assert.equal(result.reason, "session_present_but_not_in_boundary");
+    assert.equal(
+      result.reason,
+      "session_present_but_not_fresh",
+      "stale session should be flagged distinct from a boundary breach"
+    );
   });
 
-  test("non-trade message inside approved session → ALLOW_IN_SESSION", () => {
+  test("H1 fix: non-trade message inside approved session → REMIND (not ALLOW_IN_SESSION)", () => {
+    // Old buggy behaviour: ALLOW_IN_SESSION told the agent 'continue without confirmation'
+    // even for query messages like '今天市場如何', which is misleading.
+    // Correct behaviour: surface an active-session reminder; do not auto-advance.
     const session = makeSession();
     const result = classify("今天市場如何", rules, session, null, makeEvent());
-    assert.equal(result.decision, "ALLOW_IN_SESSION");
+    assert.equal(result.decision, "REMIND");
+    assert.equal(result.reason, "active_session_visibility_reminder");
+  });
+
+  test("H2 fix: preprocessed inside session WITHOUT pendingStep → REMIND (not ALLOW_IN_SESSION)", () => {
+    // Skill forgot to attach pendingStep before tool call → hook must not silently allow.
+    const session = makeSession();
+    const result = classify("繼續", rules, session, null, makeEvent());
+    assert.equal(result.decision, "REMIND");
+  });
+
+  test("H2 fix: preprocessed inside session with INVALID pendingStep (NaN) → ESCALATE", () => {
+    const session = makeSession();
+    const result = classify(
+      "繼續",
+      rules,
+      session,
+      { size_quote: NaN } as any,
+      makeEvent()
+    );
+    assert.equal(result.decision, "ESCALATE");
+    assert.equal(result.reason, "pending_step_size_invalid_or_missing");
+  });
+
+  test("H2 fix: preprocessed inside session with negative size_quote → ESCALATE", () => {
+    const session = makeSession();
+    const result = classify("繼續", rules, session, { size_quote: -100 }, makeEvent());
+    assert.equal(result.decision, "ESCALATE");
+    assert.equal(result.reason, "pending_step_size_invalid_or_missing");
+  });
+
+  test("H2 fix: preprocessed inside session with size_quote=0 → ESCALATE", () => {
+    const session = makeSession();
+    const result = classify("繼續", rules, session, { size_quote: 0 }, makeEvent());
+    assert.equal(result.decision, "ESCALATE");
+    assert.equal(result.reason, "pending_step_size_invalid_or_missing");
+  });
+
+  test("received action with active session → REMIND (user message, not execution)", () => {
+    const session = makeSession();
+    const result = classify("繼續", rules, session, pending(3000), makeEvent({
+      action: "received",
+      context: { content: "繼續" }
+    }));
+    assert.equal(result.decision, "REMIND");
   });
 });
 
@@ -268,13 +350,16 @@ describe("classify / duplicate execution", () => {
         }
       });
 
+    // H1 fix: received with active session → REMIND (not ALLOW_IN_SESSION).
+    // What this test guards: dedup must NOT fire on 'received' action — both
+    // calls take the same path, neither becomes PAUSE.
     const r1 = classify("繼續", rules, session, pending(3000), evt());
     const r2 = classify("繼續", rules, session, pending(3000), evt());
-    assert.equal(r1.decision, "ALLOW_IN_SESSION");
+    assert.equal(r1.decision, "REMIND");
     assert.equal(
       r2.decision,
-      "ALLOW_IN_SESSION",
-      "dedup should only fire on preprocessed (pre-execution)"
+      "REMIND",
+      "dedup should only fire on preprocessed (pre-execution); received must not become PAUSE"
     );
   });
 });
@@ -375,12 +460,97 @@ describe("helper: insideApprovedBoundary", () => {
     assert.equal(insideApprovedBoundary(null, null), false);
   });
 
-  test("daily loss breach → false", () => {
+  test("daily loss breach (realized_pnl=-6000, max=5000) → false", () => {
     const s = makeSession({
       policy: { max_daily_loss_quote: 5000 },
       risk_state: { realized_pnl_quote: -6000 }
     });
     assert.equal(insideApprovedBoundary(s, null), false);
+  });
+
+  test("H4 fix: profit must NOT trip daily loss cap (realized_pnl=+8000, max=5000) → true", () => {
+    // Old buggy behaviour: Math.abs(8000) = 8000 > 5000 → false (incorrectly halts).
+    // Correct behaviour: profit doesn't count as loss; only realized_pnl < -max_daily_loss should halt.
+    const s = makeSession({
+      policy: { max_daily_loss_quote: 5000 },
+      risk_state: { realized_pnl_quote: 8000 }
+    });
+    assert.equal(
+      insideApprovedBoundary(s, null),
+      true,
+      "profit above daily-loss-cap magnitude must not be misread as loss breach"
+    );
+  });
+
+  test("daily loss exactly at threshold (realized_pnl=-5000, max=5000) → true (boundary inclusive)", () => {
+    const s = makeSession({
+      policy: { max_daily_loss_quote: 5000 },
+      risk_state: { realized_pnl_quote: -5000 }
+    });
+    assert.equal(insideApprovedBoundary(s, null), true);
+  });
+});
+
+describe("helper: scrubAuditText (M5 PII redaction)", () => {
+  test("EVM address is masked", () => {
+    const text = "withdraw 0x742d35Cc6634C0532925a3b844Bc9e7595f06bD8 100 usdt";
+    const scrubbed = scrubAuditText(text);
+    assert.match(scrubbed, /<evm_addr>/);
+    assert.doesNotMatch(scrubbed, /0x742d35/);
+  });
+
+  test("BTC bech32 address is masked", () => {
+    const text = "send to bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
+    const scrubbed = scrubAuditText(text);
+    assert.match(scrubbed, /<btc_addr>/);
+    assert.doesNotMatch(scrubbed, /bc1qxy2kgdy/);
+  });
+
+  test("BTC legacy address is masked", () => {
+    const text = "send 0.5 btc to 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa";
+    const scrubbed = scrubAuditText(text);
+    assert.match(scrubbed, /<btc_addr>/);
+    assert.doesNotMatch(scrubbed, /1A1zP1eP/);
+  });
+
+  test("email is masked", () => {
+    const text = "user alice@example.com wants to buy";
+    const scrubbed = scrubAuditText(text);
+    assert.match(scrubbed, /<email>/);
+    assert.doesNotMatch(scrubbed, /alice@/);
+  });
+
+  test("long alphanumeric token (likely API key / mnemonic) is masked", () => {
+    const text = "key=sk_live_abcdef1234567890ABCDEFghij1234567890XYZ";
+    const scrubbed = scrubAuditText(text);
+    assert.match(scrubbed, /<long_token>/);
+    assert.doesNotMatch(scrubbed, /sk_live_abcdef/);
+  });
+
+  test("trade amounts are preserved (needed for audit)", () => {
+    const text = "買 5000 twd 的 btc";
+    const scrubbed = scrubAuditText(text);
+    assert.match(scrubbed, /5000/, "amount must remain visible for cap-decision audit");
+    assert.match(scrubbed, /twd/);
+  });
+
+  test("decision keywords preserved (needed for audit)", () => {
+    const text = "繼續執行馬丁格爾";
+    const scrubbed = scrubAuditText(text);
+    assert.equal(scrubbed, text, "Chinese text without PII must pass through unchanged");
+  });
+
+  test("multiple PII items in one message all get masked", () => {
+    const text = "from alice@x.com send to 0x742d35Cc6634C0532925a3b844Bc9e7595f06bD8 amount 1000";
+    const scrubbed = scrubAuditText(text);
+    assert.match(scrubbed, /<email>/);
+    assert.match(scrubbed, /<evm_addr>/);
+    assert.match(scrubbed, /1000/, "amount preserved");
+  });
+
+  test("empty / null input handled gracefully", () => {
+    assert.equal(scrubAuditText(""), "");
+    assert.equal(scrubAuditText(null as any), null);
   });
 });
 
