@@ -309,7 +309,7 @@ Get OTC buy and sell price for a currency in TWD.
 
 ## Private Endpoints (Authentication Required)
 
-All private endpoints require authentication headers. See [auth.md](./auth.md) for details.
+All private endpoints require authentication headers. See [authentication.md](./authentication.md) for details.
 
 **Header rules summary:**
 - GET: all three headers included
@@ -529,7 +529,7 @@ Create up to 10 limit or market orders at a time.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `pair` | string | Yes | Trading pair (e.g. `BTC_TWD`) |
+| `pair` | string | Yes | Trading pair (e.g. `btc_twd`) |
 | `action` | string | Yes | `BUY` or `SELL` |
 | `type` | string | Yes | `LIMIT` or `MARKET` |
 | `amount` | string | Yes | Order quantity (for market buy: quote currency amount) |
@@ -543,7 +543,7 @@ Create up to 10 limit or market orders at a time.
 ```json
 [
   {
-    "pair": "BTC_TWD",
+    "pair": "btc_twd",
     "action": "BUY",
     "type": "LIMIT",
     "price": "2800000",
@@ -552,7 +552,7 @@ Create up to 10 limit or market orders at a time.
     "clientId": 2147483647
   },
   {
-    "pair": "ETH_TWD",
+    "pair": "eth_twd",
     "action": "SELL",
     "type": "MARKET",
     "amount": "0.1",
@@ -602,8 +602,8 @@ Cancel multiple orders by given order IDs, grouped by pair.
 
 ```json
 {
-  "BTC_USDT": ["12234566", "12234567"],
-  "ETH_USDT": ["44566712", "24552212"]
+  "btc_usdt": ["12234566", "12234567"],
+  "eth_usdt": ["44566712", "24552212"]
 }
 ```
 
@@ -612,8 +612,8 @@ Cancel multiple orders by given order IDs, grouped by pair.
 ```json
 {
   "data": {
-    "BTC_USDT": ["12234566", "12234567"],
-    "ETH_USDT": ["44566712", "24552212"]
+    "btc_usdt": ["12234566", "12234567"],
+    "eth_usdt": ["44566712", "24552212"]
   }
 }
 ```
@@ -637,8 +637,8 @@ Cancel all open orders. Use `/orders/all` to cancel all pairs, or `/orders/{pair
 ```json
 {
   "data": {
-    "BTC_USDT": ["12234566", "12234567"],
-    "ETH_USDT": ["44566712", "24552212"]
+    "btc_usdt": ["12234566", "12234567"],
+    "eth_usdt": ["44566712", "24552212"]
   }
 }
 ```

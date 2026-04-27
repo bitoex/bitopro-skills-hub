@@ -141,7 +141,7 @@
       "prompt": "Show me my recent trade fills for ETH/TWD.",
       "expected_output": "The agent constructs an authenticated GET request to /orders/trades/eth_twd.",
       "expectations": [
-        "The agent uses the get_trades tool (private, not public trades)",
+        "The agent uses the get_trade_fills tool (private fills, not public market trades — see Tool 3 get_public_trades for public)",
         "The request URL includes /orders/trades/eth_twd",
         "The signing payload uses identity + nonce"
       ]

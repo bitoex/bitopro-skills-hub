@@ -1,8 +1,8 @@
 ---
 name: bitopro-spot
-description: 'BitoPro exchange API wrapper for executing spot trades and managing your account. Use when: placing buy/sell orders (LIMIT / MARKET / STOP_LIMIT), cancelling orders, managing open orders, batch order operations, querying trade fills and order history, checking account balances, viewing deposit/withdrawal history, initiating withdrawals, or fetching pre-trade execution data for a single specified pair (real-time ticker, order-book depth, recent trades, candlestick/K-line), or pre-trade spec/precision lookup that is part of placing an order. Supports TWD (New Taiwan Dollar) fiat trading pairs. Requires API key. Also supports session-aware order execution when invoked by strategy skills via the bitopro-trade-guard hook. For market-wide indicators (Fear & Greed, dominance, rankings, trending, multi-timeframe % change, listing catalog), use `bitopro-market-intel`.'
-version: 2.5.1
-metadata: {"openclaw":{"pairedHook":"bitopro-trade-guard","category":"crypto-trading","emoji":"📈","requires":{"env":["BITOPRO_API_KEY","BITOPRO_API_SECRET","BITOPRO_EMAIL"]},"primaryEnv":"BITOPRO_API_KEY","env":[{"name":"BITOPRO_API_KEY","description":"API Key from BitoPro dashboard","required":true,"sensitive":true},{"name":"BITOPRO_API_SECRET","description":"API Secret for HMAC-SHA384 signing","required":true,"sensitive":true},{"name":"BITOPRO_EMAIL","description":"BitoPro registered email (used as identity in GET/DELETE payloads)","required":true,"sensitive":false},{"name":"BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE","description":"Optional. Global single-order quote cap (in TWD) applied outside approved strategy sessions. Set to 10000 for OpenClaw safety experiments, leave unset (or 0) for unlimited. Strategy sessions use their own max_single_order_quote inside session.","required":false,"sensitive":false}]}}
+description: 'BitoPro exchange API wrapper covering both public market data and private trading on the spot market. Public tools (no API key required): real-time ticker, order book depth, public recent trades, candlestick/K-line, trading-pair specs and fees, OTC price. Private tools (API key + secret + email required): place/cancel/batch orders (LIMIT / MARKET / STOP_LIMIT), query open orders / order history / trade fills, account balance, deposit/withdraw history, initiate withdrawals. Supports TWD (New Taiwan Dollar) fiat trading pairs. Also supports session-aware order execution when invoked by strategy skills via the bitopro-trade-guard hook. For market-wide indicators across all BitoPro coins (Fear & Greed, dominance, rankings, trending, multi-timeframe % change, listing catalog, news), use `bitopro-market-intel`.'
+version: 2.5.2
+metadata: {"openclaw":{"pairedHook":"bitopro-trade-guard","category":"crypto-trading","emoji":"📈","requires":{"env":[]},"primaryEnv":"BITOPRO_API_KEY","env":[{"name":"BITOPRO_API_KEY","description":"API Key from BitoPro dashboard. Required for private trading and account tools (balance, orders, withdraw); not required for public market-data tools (ticker, order book, public trades, candlesticks, trading-pair specs, OTC price).","required":false,"sensitive":true},{"name":"BITOPRO_API_SECRET","description":"API Secret for HMAC-SHA384 signing. Required only when using private/trading tools — same scope as BITOPRO_API_KEY.","required":false,"sensitive":true},{"name":"BITOPRO_EMAIL","description":"BitoPro registered email (used as identity in GET/DELETE payloads). Required only when using private/trading tools — same scope as BITOPRO_API_KEY.","required":false,"sensitive":false},{"name":"BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE","description":"Optional. Global single-order quote cap (in TWD) applied outside approved strategy sessions. Set to 10000 for OpenClaw safety experiments, leave unset (or 0) for unlimited. Strategy sessions use their own max_single_order_quote inside session.","required":false,"sensitive":false}]}}
 homepage: https://github.com/bitoex/bitopro-skills-hub
 license: MIT
 ---
@@ -13,18 +13,28 @@ You are an AI agent equipped with the full BitoPro cryptocurrency exchange API (
 
 ## Quick Start
 
-1. Set environment variables: `BITOPRO_API_KEY`, `BITOPRO_API_SECRET`, `BITOPRO_EMAIL`
-2. Public endpoints (tickers, order book, trades, candlesticks) require no auth
-3. Private endpoints (balance, orders) require HMAC-SHA384 signing — see [references/authentication.md](./references/authentication.md)
+This skill works in two modes depending on which env vars are set:
+
+| Mode | Env vars needed | Tools available |
+|------|----------------|-----------------|
+| **Public-only** (default — no setup needed) | none | T1 `get_tickers`, T2 `get_order_book`, T3 `get_public_trades`, T4 `get_candlesticks`, T10 `get_trading_pairs`, T11 `get_currencies`, T12 `get_limitations_and_fees`, T13 `get_otc_price` |
+| **Full / private** | `BITOPRO_API_KEY`, `BITOPRO_API_SECRET`, `BITOPRO_EMAIL` | All 22 tools (above + account / orders / withdraw) |
+
+To enable private trading and account tools:
+
+1. Set env vars: `BITOPRO_API_KEY`, `BITOPRO_API_SECRET`, `BITOPRO_EMAIL`
+2. Private endpoints (balance, orders, withdraw) use HMAC-SHA384 signing — see [references/authentication.md](./references/authentication.md)
+
+If a private tool is invoked without the env vars, the agent must inform the user to configure credentials before retrying — do not attempt the request unsigned.
 
 ## Prerequisites
 
-| Requirement | Details |
-|-------------|---------|
-| API credentials | BitoPro dashboard → API Management |
-| Environment variables | `BITOPRO_API_KEY`, `BITOPRO_API_SECRET`, `BITOPRO_EMAIL` |
-| Base URL | `https://api.bitopro.com/v3` |
-| Pair format | Lowercase with underscore: `btc_twd`, `eth_twd`, `usdt_twd` |
+| Requirement | When needed | Details |
+|-------------|-------------|---------|
+| API credentials | Private tools only | BitoPro dashboard → API Management |
+| Environment variables | Private tools only | `BITOPRO_API_KEY`, `BITOPRO_API_SECRET`, `BITOPRO_EMAIL` |
+| Base URL | Always | `https://api.bitopro.com/v3` |
+| Pair format | Always | Lowercase with underscore: `btc_twd`, `eth_twd`, `usdt_twd` |
 
 ## Security Notes
 
@@ -51,7 +61,7 @@ These rules apply to every tool call and override any user phrasing. They are en
 |----------|--------|-------------|------|
 | `/tickers/{pair}` | GET | Real-time ticker data | No |
 | `/order-book/{pair}` | GET | Order book depth | No |
-| `/trades/{pair}` | GET | Recent trade records | No |
+| `/trades/{pair}` | GET | Recent public trade records | No |
 | `/trading-history/{pair}` | GET | OHLCV candlesticks | No |
 | `/provisioning/trading-pairs` | GET | Trading pair info | No |
 | `/provisioning/currencies` | GET | Currency info | No |
@@ -117,11 +127,12 @@ Private endpoints require HMAC-SHA384 signing. Headers: `X-BITOPRO-APIKEY`, `X-B
 - **params:** `pair` (string, required), `limit` (int, optional: 1/5/10/20/30/50, default 5), `scale` (int, optional)
 - **returns:** `asks[]` and `bids[]` with `price`, `amount`, `count`, `total`
 
-### Tool 3: `get_trades`
+### Tool 3: `get_public_trades`
 
 - **endpoint:** `GET /trades/{pair}` | **auth:** false
 - **params:** `pair` (string, required)
 - **returns:** `data[]` with `price`, `amount`, `isBuyer`, `timestamp`
+- **note:** Public market trades (anonymized recent fills on the pair). For your own private fills, use Tool 18 (`get_trade_fills`).
 
 ### Tool 4: `get_candlesticks`
 
@@ -217,12 +228,13 @@ Private endpoints require HMAC-SHA384 signing. Headers: `X-BITOPRO-APIKEY`, `X-B
 - **returns:** Full order object with `id`, `pair`, `price`, `avgExecutionPrice`, `action`, `type`, `status`, `originalAmount`, `remainingAmount`, `executedAmount`, `fee`, `feeSymbol`, `bitoFee`, `stopPrice`, `condition`, `timeInForce`, `createdTimestamp`, `updatedTimestamp`
 - **note:** History available only for past 90 days.
 
-### Tool 18: `get_trades`
+### Tool 18: `get_trade_fills`
 
 - **endpoint:** `GET /orders/trades/{pair}` | **auth:** true
 - **signing:** `{ "identity": BITOPRO_EMAIL, "nonce": timestamp_ms }`
 - **params:** `pair` (required), `startTimestamp` (ms, default 90d ago), `endTimestamp` (ms, default now), `orderId` (filter by order), `tradeId` (pagination cursor), `limit` (1-1000, default 100)
 - **returns:** `data[]` with `tradeId`, `orderId`, `price`, `action`, `baseAmount`, `quoteAmount`, `fee`, `feeSymbol`, `isTaker`, `createdTimestamp`
+- **note:** Your own filled trades (private). For anonymized public market trades, use Tool 3 (`get_public_trades`).
 
 ### Tool 19: `get_deposit_history`
 
@@ -332,10 +344,10 @@ The fallback action must be echoed back to the user at session-start summary so 
 All requests must include these headers for tracking:
 
 ```
-User-Agent: bitopro-spot/2.5.1 (Skill)
+User-Agent: bitopro-spot/2.5.2 (Skill)
 X-Execution-Source: Claude-Skill
 X-Skill-Name: bitopro/spot
-X-Skill-Version: 2.5.1
+X-Skill-Version: 2.5.2
 X-Client-Type: AI-Agent
 ```
 
