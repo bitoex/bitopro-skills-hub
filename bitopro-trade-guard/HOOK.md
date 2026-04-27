@@ -62,14 +62,20 @@ Classification proceeds top-down. The first matching rule wins.
 
 1. **Policy bypass / prompt reveal / external instruction** → `BLOCK`. Includes explicit attempts to alter policy (`忽略之前的規則`, `略過確認`, `skip confirmation`) and attempts to reveal system prompts. This rule fires **regardless of session state** — you cannot override policy from inside an approved session either.
 2. **Duplicate execution suspected** (same `executionAttemptId` within the dedupe window on `message:preprocessed`) → `PAUSE`.
-3. **Approved session + look-ahead boundary check passes** → `ALLOW_IN_SESSION`. This must be checked **before** any soft-signal check, so that polite in-session continuation is not misread as coercion.
-4. **Session exists but NOT in boundary** (expired / over-step / over-exposure / projected breach) → `ESCALATE`. Do not silently fall through.
-5. **Outside session + single-order cap breach** (`BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE > 0` and `pendingStep.size_quote > cap`) → `ESCALATE`. This applies only when no approved strategy session is active; session-approved step sizes use `max_single_order_quote` instead.
-6. **Strategy-shaped request with no session** → `APPROVE_SESSION`.
-7. **Not trade-related** → `ALLOW`.
-8. **Trade-related but ambiguous or missing core fields** → `CLARIFY`.
-9. **Trade-related, complete, but high-risk pattern** (percentage, `all`, `half`, session-external soft coercion like `現在立刻執行`) → `ESCALATE`.
-10. **Otherwise** → `ALLOW`.
+3. **Active session handling** (multi-branch, in this order):
+   1. Stale session (expired / `status` not in `approved`/`running`) → `ESCALATE` (`session_present_but_not_fresh`).
+   2. Fresh session + `message:preprocessed` + valid `pendingStep` (finite positive `size_quote`) + boundary check passes → `ALLOW_IN_SESSION`. **This is the only path that auto-allows execution without confirmation**, and it requires the skill to declare a real order step.
+   3. Fresh session + `message:preprocessed` + `pendingStep` exists but `size_quote` is invalid (missing / NaN / ≤ 0) → `ESCALATE` (`pending_step_size_invalid_or_missing`). The skill tried to declare a step but did so incorrectly; do not silently allow.
+   4. Fresh session + `message:preprocessed` + valid `pendingStep` but boundary fails → `ESCALATE` (`session_present_but_not_in_boundary`).
+   5. Fresh session + any other event (`message:received` user input, or `message:preprocessed` for a query/cancel that legitimately carries no `pendingStep`) → `REMIND`. The agent surfaces a concise active-strategy summary before responding; execution is NOT auto-allowed.
+
+   This branching runs **before** the soft-signal check, so polite in-session continuation (`繼續`, `keep going`, `不要停`) is not misread as coercion.
+4. **Outside session + single-order cap breach** (`BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE > 0` and `pendingStep.size_quote > cap`) → `ESCALATE`. This applies only when no approved strategy session is active; session-approved step sizes use `max_single_order_quote` instead.
+5. **Strategy-shaped request with no session** → `APPROVE_SESSION`.
+6. **Not trade-related** → `ALLOW`.
+7. **Trade-related but ambiguous or missing core fields** → `CLARIFY`.
+8. **Trade-related, complete, but high-risk pattern** (percentage, `all`, `half`, session-external soft coercion like `現在立刻執行`) → `ESCALATE`.
+9. **Otherwise** → `ALLOW`.
 
 ## Event semantics
 
@@ -85,10 +91,10 @@ The guardrail layer is **advisory**, not a hard interceptor. The paired skill mu
 
 ## Look-ahead boundary check
 
-The skill is expected to attach a `pendingStep` object to `event.context` before any `execute_market_order` tool call:
+The skill is expected to attach a `pendingStep` object to `event.context` before any `create_order` / `create_batch_orders` tool call:
 
 ```
-event.context.pendingStep = { size_quote: <TWD amount of this step> }
+event.context.pendingStep = { size_quote: <TWD amount of this step, finite positive number> }
 ```
 
 The hook uses this to project the state **after** the step:
@@ -98,13 +104,17 @@ The hook uses this to project the state **after** the step:
 
 `ALLOW_IN_SESSION` requires all of:
 
+- `event.action === "preprocessed"` (an actual execution attempt, not a user message)
+- `pendingStep.size_quote` is a finite positive number (skill must declare; missing or invalid → `ESCALATE`)
 - `projected_step ≤ policy.max_steps`
 - `projected_exposure ≤ policy.max_total_exposure_quote`
 - `pendingStep.size_quote ≤ policy.max_single_order_quote`
-- `|risk_state.realized_pnl_quote| ≤ policy.max_daily_loss_quote`
+- `realized_pnl_quote ≥ -policy.max_daily_loss_quote` (only losses count against the loss cap; profit does not trip it)
 - `sessionIsFresh(session) === true`
 
-If any of these fail, the hook returns `ESCALATE`. This is the only way to avoid the classic "last step squeezed through" failure where the current state is in-bounds but executing the step pushes the session over.
+If `pendingStep` is missing or its `size_quote` is invalid, the hook returns `ESCALATE` rather than silently allowing the call. If the boundary projection fails, it also returns `ESCALATE`. This is the only way to avoid the classic "last step squeezed through" failure where the current state is in-bounds but executing the step pushes the session over.
+
+For non-execution events inside a fresh session — `message:received` (user is talking) or `message:preprocessed` for query/cancel tools that don't carry a `pendingStep` — the hook returns `REMIND`. The skill should surface running-session visibility but not treat the message as an authorisation to advance.
 
 ## Session freshness
 
@@ -118,27 +128,36 @@ Long-horizon strategies (DCA 30 days, grid across weeks) must declare `session.p
 
 ## Reminder and visibility model
 
-The hook supports non-blocking visibility controls to reduce "forgotten strategy" risk:
+The hook surfaces a `REMIND` decision when an active strategy session exists and the current event is **not** an order execution attempt — for example, a user message arrived (`message:received`) or the agent is about to call a non-execution tool (preprocessed without a `pendingStep`). In these cases the agent should display a concise active-strategy summary before continuing, but execution is not auto-allowed.
 
-- **Session-start reminder**: Immediately after approval, display strategy name, pair, state, next trigger, kill-switch command, and the declared `on_escalation_timeout` fallback.
-- **Execution summary reminder**: After each in-session trade, display what executed, current step, total exposure, and remaining headroom.
-- **Active strategy banner**: When a user returns to a trading conversation and active sessions exist, show a concise summary of active strategies and open positions before proceeding.
-- **Threshold alerts**: Trigger reminders when exposure, loss, or step usage crosses configured thresholds (default 0.8). A threshold alert is informational — it does **not** escalate on its own.
-- **Inactive-user reminder**: If a session has been running but the user has not reviewed it for a configured interval, display a reminder that strategies and positions remain active.
-- **Daily digest**: Optionally summarize currently running strategies, open positions, daily executions, and current risk status.
+### v1.0 implemented
 
-These reminders must not halt execution while the strategy remains inside approved boundaries.
+- **`REMIND` decision** — fires whenever a fresh approved session is present and the event is not an order execution attempt. The injected guardrail message asks the agent to surface running sessions / open positions.
 
-## Kill-switch model
+### v1.0 NOT yet implemented (planned for v1.1+)
 
-The hook recognizes multiple stop states rather than a single binary stop:
+The skill or paired UI may implement these on top of the hook's session contract; the hook itself does not yet trigger them automatically:
+
+- **Session-start reminder** — display strategy name, pair, state, next trigger, kill-switch command, and `on_escalation_timeout` fallback right after approval.
+- **Execution summary reminder** — after each in-session trade, display what executed, current step, total exposure, remaining headroom.
+- **Threshold alerts** — fire when exposure / loss / step usage crosses configured thresholds (default 0.8). Currently the hook only surfaces a binary `REMIND`; threshold-aware reminders require state tracking the hook does not yet maintain.
+- **Inactive-user reminder** — if a session has been running but the user has not reviewed it for a configured interval, display a reminder that strategies and positions remain active.
+- **Daily digest** — optionally summarize currently running strategies, open positions, daily executions, and current risk status.
+
+These planned features must not halt execution while the strategy remains inside approved boundaries.
+
+## Kill-switch model (v1.0 NOT implemented — planned for v1.1+)
+
+The current hook does not implement an internal kill-switch. The paired skill is responsible for refusing risk-increasing actions when the user requests an emergency stop.
+
+The planned model recognises multiple stop states rather than a single binary stop:
 
 - **Global hard stop**: Disable all new strategy actions immediately and treat all sessions as paused.
 - **Session pause**: Pause one strategy session while leaving others unaffected.
 - **Scoped block**: Block one pair, one strategy type, or one risk-increasing action while still allowing read-only inspection.
 - **Risk-reducing mode**: Permit read-only status checks and optionally risk-reducing actions while preventing new risk-increasing orders.
 
-Kill-switch activations should be outside the agent's own reasoning path and are always audited.
+When implemented, kill-switch activations should be outside the agent's own reasoning path and always audited.
 
 ## Session-external coercion vs in-session continuation
 
@@ -198,6 +217,30 @@ If the audit write fails:
 
 - By default the hook emits a warning to `stderr` and still returns the original decision (fail-open), so a broken log disk does not halt trading.
 - When `BITOPRO_GUARD_FAIL_CLOSED_ON_AUDIT_ERROR=true`, the hook injects an additional guardrail asking for explicit human approval before any execution — useful for compliance-sensitive deployments.
+
+### PII scrubbing (M5 — applied to user text before persistence)
+
+Audit log lines persist a truncated copy of `event.context.bodyForAgent` / `content` for review. Before writing, the hook runs `scrubAuditText()` to mask sensitive identifiers while preserving structural fields needed for boundary-decision review:
+
+| Pattern | Replaced with |
+|---|---|
+| EVM addresses (`0x` + 40 hex) | `<evm_addr>` |
+| BTC bech32 addresses (`bc1` + 6-62 alphanumeric) | `<btc_addr>` |
+| BTC legacy addresses (`1` / `3` + 25-34 base58) | `<btc_addr>` |
+| Email addresses | `<email>` |
+| Long alphanumeric tokens (≥ 30 chars, may contain `_`) | `<long_token>` |
+
+**Trade amounts and currency units are intentionally preserved** — they are needed to verify cap and boundary decisions in retrospect. If you later need stricter privacy, add an opt-in env var (e.g. `BITOPRO_GUARD_AUDIT_AMOUNT_BUCKETING=true`) to round amounts to nearest decade.
+
+### Retention guidance (operations responsibility, not enforced by code)
+
+The hook appends to a single audit log indefinitely. Operators should:
+
+- **Rotate** the log file daily or weekly (e.g. via `logrotate`) to prevent unbounded growth.
+- **Restrict file permissions** to the runtime user only (`chmod 600`).
+- **Retain** for the period required by local compliance (typical 90 days for trading-related logs in TW).
+- **Archive** older rotations to encrypted storage or delete after retention period elapses.
+- **Do NOT** ship the audit log into shared chat / monitoring channels — even with PII scrubbed, behaviour patterns can be sensitive.
 
 ## Configuration
 
