@@ -89,9 +89,9 @@ def build_headers(method: str, api_key: str, api_secret: str, email: str, body: 
 
     Args:
         method: HTTP method (GET, POST, PUT, DELETE)
-        api_key: BITOPRO_API_KEY
-        api_secret: BITOPRO_API_SECRET
-        email: BITOPRO_EMAIL
+        api_key: API key (read from $BITOPRO_API_KEY env var)
+        api_secret: API secret (read from $BITOPRO_API_SECRET env var)
+        email: Account email (read from $BITOPRO_EMAIL env var)
         body: Request body dict (for POST/PUT only)
     """
     nonce = int(time.time() * 1000)
