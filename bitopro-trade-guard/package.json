@@ -1,8 +1,10 @@
 {
-  "name": "bitopro-trade-guard",
+  "name": "@bitopro/trade-guard",
   "version": "1.0.0",
   "type": "module",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Strategy-aware guardrail hook for bitopro-ai-trade on OpenClaw",
   "main": "handler.ts",
   "scripts": {
