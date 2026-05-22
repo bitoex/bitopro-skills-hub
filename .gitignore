@@ -1,5 +1,16 @@
+.DS_Store
+CLAUDE.md
+
+# Local workspaces
 spot-workspace/
 ai-trade-workspace/
 skills/bitopro/ai-trade/
-CLAUDE.md
-.DS_Store
+
+# Personal session memory
+.remember/
+
+# Local data directory (repo root only)
+/data/
+
+# Build artifacts not for redistribution
+skills/bitopro/*.zip

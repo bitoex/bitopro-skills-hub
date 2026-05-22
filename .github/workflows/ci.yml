@@ -5,21 +5,29 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    defaults:
+      run:
+        working-directory: bitopro-trade-guard
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
-      # 關鍵：使用 npm ci 而非 npm install
+          cache: 'npm'
+          cache-dependency-path: bitopro-trade-guard/package-lock.json
+
+      # 關鍵：用 npm ci（從 lockfile 還原）+ --ignore-scripts（阻擋 preinstall 惡意腳本）
+      # 即使供應鏈被劫持，install 階段也不會執行任何上游的 pre/post 腳本
       - name: Install dependencies
         run: npm ci --ignore-scripts
-        # --ignore-scripts 阻擋惡意 install scripts
-      
+
       - name: Security audit
         run: npm audit --audit-level=high
-      
+
+      - name: Type check
+        run: npm run typecheck
+
       - name: Run tests
         run: npm test
