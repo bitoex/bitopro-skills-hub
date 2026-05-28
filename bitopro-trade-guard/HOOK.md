@@ -7,7 +7,7 @@ description: >
   checks, and surfaces active strategy reminders, open-position visibility,
   threshold alerts, and layered kill-switch behavior without interrupting
   healthy in-session execution.
-version: 1.0.0
+version: 1.1.0
 metadata:
   openclaw:
     pairedSkill: bitopro-spot
@@ -24,6 +24,9 @@ metadata:
       - BITOPRO_STRATEGY_SESSION_IDLE_MINUTES
       - BITOPRO_GUARD_DEDUPE_WINDOW_MS
       - BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE
+      - BITOPRO_GUARD_RATE_LIMIT_ENABLED
+      - BITOPRO_GUARD_RATE_LIMIT_FACTOR
+      - BITOPRO_GUARD_RATE_LIMITS_FILE
 license: MIT
 ---
 
@@ -55,6 +58,7 @@ A paused strategy is not always safer than a running one. Therefore:
 | `BLOCK` | Request attempts policy bypass, prompt injection, or unsafe external instruction | Refuse execution |
 | `PAUSE` | Runtime anomaly, duplicate execution, or state inconsistency detected | Pause session safely and request operator action |
 | `REMIND` | Session is healthy but user needs visibility | Display active strategy / position reminder without interrupting execution |
+| `THROTTLE` | Outgoing call rate is approaching BitoPro's official API limit | Wait `retryAfterSeconds` before sending the next call, then continue (no operator action needed) |
 
 ## Decision order (must be stable)
 
@@ -76,6 +80,8 @@ Classification proceeds top-down. The first matching rule wins.
 7. **Trade-related but ambiguous or missing core fields** → `CLARIFY`.
 8. **Trade-related, complete, but high-risk pattern** (percentage, `all`, `half`, session-external soft coercion like `現在立刻執行`) → `ESCALATE`.
 9. **Otherwise** → `ALLOW`.
+
+**Final gate — rate-limit throttle.** After the rule above produces a base decision, a client-side throttle runs on `message:preprocessed` events. It counts only decisions that would actually issue a BitoPro API call (`ALLOW` / `ALLOW_IN_SESSION`); `BLOCK` and the dedup `PAUSE` are never counted (a blocked or duplicate call does not reach the exchange). If the sliding-window count for the resolved endpoint reaches `floor(limit × factor)`, the decision is overridden to `THROTTLE`. This gate fires **after** dedup and **before** allowing execution, so an in-session fast loop is throttled too. See [Rate-limit throttle](#rate-limit-throttle).
 
 ## Event semantics
 
@@ -195,7 +201,7 @@ The paired skill should maintain a strategy session object with at least:
 - `risk_state.last_activity_at`
 - `risk_state.open_positions_summary`
 
-The skill is also expected to attach `pendingStep.size_quote` on `message:preprocessed` before any execution tool call, and `executionAttemptId` to support duplicate-execution detection.
+The skill is also expected to attach `pendingStep.size_quote` on `message:preprocessed` before any execution tool call, and `executionAttemptId` to support duplicate-execution detection. To get per-endpoint rate-limit bucketing, it should additionally attach `apiOp` (see [Rate-limit throttle](#rate-limit-throttle)); when omitted, order calls still fall back to the tightest create-side bucket.
 
 ## Guardrail messages
 
@@ -242,6 +248,52 @@ The hook appends to a single audit log indefinitely. Operators should:
 - **Archive** older rotations to encrypted storage or delete after retention period elapses.
 - **Do NOT** ship the audit log into shared chat / monitoring channels — even with PII scrubbed, behaviour patterns can be sensitive.
 
+## Rate-limit throttle
+
+The hook ships a **client-side proactive throttle** that keeps the agent under BitoPro's official per-endpoint API limits, so a runaway strategy loop backs off *before* the exchange returns a real `429`.
+
+### What it is — and is not
+
+- It is **proactive**: it paces outgoing calls on `message:preprocessed` (before the call leaves the process).
+- It is **not reactive**: the hook never sees HTTP responses, so it cannot read a `Retry-After` header or react to an actual `429`. That belongs to whatever layer makes the HTTP call (OpenClaw tool / SDK) or to the paired skill's own 429 guidance.
+- It is **advisory** (like the rest of the hook): it injects a `THROTTLE` guardrail; true hard limits remain the exchange's `429`.
+
+### Official limits (source of truth)
+
+Limits live in `rate-limits.json` (next to the handler, or at `BITOPRO_GUARD_RATE_LIMITS_FILE`). They mirror BitoPro's published limits — update the JSON if BitoPro changes them. `windowMs` of `60000` = per minute, `1000` = per second.
+
+| `apiOp` | Limit | Window |
+|---|---|---|
+| `create_order` | 1200 | 60s |
+| `create_batch_orders` | 90 | 60s |
+| `cancel_order` | 900 | 60s |
+| `cancel_batch_orders` | 2 | 1s |
+| `cancel_all_orders` | 1 | 1s |
+| `replace_order` | 2 | 1s |
+| `get_open_orders` | 5 | 1s |
+| `create_withdraw` | 60 | 60s |
+| `private_generic` / `public_generic` | 600 | 60s |
+
+The effective trip point is `floor(limit × BITOPRO_GUARD_RATE_LIMIT_FACTOR)` (default factor `0.9`), keeping a margin below the official ceiling.
+
+### Endpoint resolution (`apiOp` contract)
+
+The skill should attach `event.context.apiOp` (one of the keys above) on `message:preprocessed` before each BitoPro tool call. Resolution order:
+
+1. Explicit `event.context.apiOp` → use that bucket.
+2. No `apiOp` but a valid `pendingStep` (finite positive `size_quote`) → fall back to the **tightest order-creation bucket** (`create_batch_orders`, 90/min), so order loops are throttled even without the contract field.
+3. Neither → not throttled (the hook cannot attribute the call to an endpoint).
+
+If a resolved `apiOp` has no entry in `rate-limits.json`, it falls back to `private_generic`.
+
+### Scope of counting
+
+Only decisions that would actually issue a call (`ALLOW` / `ALLOW_IN_SESSION`) are counted. A `BLOCK` (security) or dedup `PAUSE` is never counted, and never overridden by `THROTTLE`. Operations that the classifier resolves to `CLARIFY` / `ESCALATE` / `REMIND` are not executed this turn, so they are not counted either — meaning read/cancel flows that don't reach a permitted decision are not throttled.
+
+### State
+
+The window is **in-memory, keyed by `${sessionKey}::${apiOp}`**. It resets on process restart and is not shared across processes — adequate for single-process OpenClaw deployments where one process ≈ one UID/IP. The hook exposes a test-only `__resetRateLimitState()`.
+
 ## Configuration
 
 | Env var | Default | Purpose |
@@ -253,7 +305,12 @@ The hook appends to a single audit log indefinitely. Operators should:
 | `BITOPRO_STRATEGY_SESSION_IDLE_MINUTES` | `1440` | Idle fallback when `session_expiry_at` is not declared |
 | `BITOPRO_GUARD_DEDUPE_WINDOW_MS` | `300000` | Duplicate-execution detection window |
 | `BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE` | `0` (unlimited) | Global single-order quote cap (in TWD) applied outside approved strategy sessions. Set to `10000` for OpenClaw safety experiments |
+| `BITOPRO_GUARD_RATE_LIMIT_ENABLED` | `true` | Master switch for the client-side rate-limit throttle |
+| `BITOPRO_GUARD_RATE_LIMIT_FACTOR` | `0.9` | Trip the throttle at this fraction of the official limit, leaving headroom before a real `429` |
+| `BITOPRO_GUARD_RATE_LIMITS_FILE` | handler-adjacent `rate-limits.json` | Path to the official per-endpoint limit table |
 
 ## Limitations
 
 This hook is a workflow guardrail, not a replacement for backend authorization or exchange-side limits. It reduces misuse, improves visibility, and prevents mid-session confirmation interruptions when a strategy has already been fully approved. It is advisory for the agent; enforcement still lives in the skill and in the BitoPro API.
+
+The rate-limit throttle is **proactive and best-effort**: it is in-memory (resets on restart, not shared across processes), it counts only permitted order-execution decisions, and it cannot read `Retry-After` or react to an actual `429` (the hook never sees HTTP responses). It lowers the chance of hitting the official limit; it does not guarantee the limit is never reached.

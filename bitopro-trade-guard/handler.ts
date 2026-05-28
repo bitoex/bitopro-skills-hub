@@ -21,10 +21,24 @@ function getSingleOrderMaxQuote(): number {
   return Number(process.env.BITOPRO_SPOT_SINGLE_ORDER_MAX_QUOTE || 0);
 }
 
+function isRateLimitEnabled(): boolean {
+  return /^(1|true|yes)$/i.test(process.env.BITOPRO_GUARD_RATE_LIMIT_ENABLED || "true");
+}
+
+// Safety margin: trip the client-side throttle at this fraction of BitoPro's
+// official limit, so the agent backs off BEFORE the server returns a real 429.
+function getRateLimitFactor(): number {
+  const f = Number(process.env.BITOPRO_GUARD_RATE_LIMIT_FACTOR);
+  return Number.isFinite(f) && f > 0 ? f : 0.9;
+}
+
+type RateBucket = { limit: number; windowMs: number };
+
 type Rules = {
   riskKeywords: Record<string, string[]>;
   ambiguousPatterns: string[];
   confirmationPatterns: { valid: string[]; invalid: string[] };
+  rateLimits: Record<string, RateBucket>;
 };
 
 type StrategySession = {
@@ -57,16 +71,28 @@ type DecisionCode =
   | "ESCALATE"
   | "BLOCK"
   | "PAUSE"
-  | "REMIND";
+  | "REMIND"
+  | "THROTTLE";
 
-type Decision = { decision: DecisionCode; reason: string };
+type Decision = { decision: DecisionCode; reason: string; retryAfterSeconds?: number };
 
 let cachedRules: Rules | null = null;
 const dedupeCache = new Map<string, number>();
+// Sliding-window timestamps per `${sessionKey}::${apiOp}` for client-side throttle.
+const rateLimitCache = new Map<string, number[]>();
 
 async function loadJson<T>(file: string): Promise<T> {
   const raw = await fs.readFile(path.join(RULES_DIR, file), "utf8");
   return JSON.parse(raw) as T;
+}
+
+async function loadRateLimits(): Promise<Record<string, RateBucket>> {
+  const override = process.env.BITOPRO_GUARD_RATE_LIMITS_FILE;
+  const raw = override
+    ? await fs.readFile(override, "utf8")
+    : await fs.readFile(path.join(RULES_DIR, "rate-limits.json"), "utf8");
+  const parsed = JSON.parse(raw) as { buckets?: Record<string, RateBucket> };
+  return parsed.buckets || {};
 }
 
 async function loadRules(): Promise<Rules> {
@@ -74,7 +100,8 @@ async function loadRules(): Promise<Rules> {
   cachedRules = {
     riskKeywords: await loadJson<Record<string, string[]>>("risk-keywords.json"),
     ambiguousPatterns: await loadJson<string[]>("ambiguous-patterns.json"),
-    confirmationPatterns: await loadJson<{ valid: string[]; invalid: string[] }>("confirmation-patterns.json")
+    confirmationPatterns: await loadJson<{ valid: string[]; invalid: string[] }>("confirmation-patterns.json"),
+    rateLimits: await loadRateLimits()
   };
   return cachedRules;
 }
@@ -232,7 +259,69 @@ function isDuplicateExecution(event: any): boolean {
   return false;
 }
 
+// Resolve which BitoPro endpoint this event targets, for rate-limit bucketing.
+// Prefer the skill-declared `apiOp`; if absent but the event carries a valid
+// order step, fall back to the tightest order-creation bucket so a runaway
+// strategy loop is still throttled even without the explicit contract field.
+function resolveApiOp(event: any, pendingStep: PendingStep | null): string | null {
+  const declared = event?.context?.apiOp;
+  if (typeof declared === "string" && declared) return declared;
+  if (hasFinitePositiveSize(pendingStep)) return "create_batch_orders";
+  return null;
+}
+
+// Client-side proactive throttle. Only counts decisions that would actually
+// issue a BitoPro API call (ALLOW / ALLOW_IN_SESSION) on a pre-execution event.
+// It cannot react to a real 429 (the hook never sees HTTP responses) — it keeps
+// the agent UNDER the official limit so the 429 is far less likely in the first place.
+function applyRateLimit(
+  base: Decision,
+  rules: Rules,
+  pendingStep: PendingStep | null,
+  event: any
+): Decision {
+  if (!isRateLimitEnabled()) return base;
+  if (event?.action !== "preprocessed") return base;
+  if (base.decision !== "ALLOW" && base.decision !== "ALLOW_IN_SESSION") return base;
+
+  const apiOp = resolveApiOp(event, pendingStep);
+  if (!apiOp) return base;
+
+  const bucket = rules?.rateLimits?.[apiOp] || rules?.rateLimits?.private_generic;
+  if (!bucket || !(bucket.limit > 0) || !(bucket.windowMs > 0)) return base;
+
+  const now = Date.now();
+  const key = `${event?.sessionKey || "default"}::${apiOp}`;
+  const threshold = Math.max(1, Math.floor(bucket.limit * getRateLimitFactor()));
+  const recent = (rateLimitCache.get(key) || []).filter((t) => now - t < bucket.windowMs);
+
+  if (recent.length >= threshold) {
+    rateLimitCache.set(key, recent);
+    const retryAfter = Math.max(1, Math.ceil((recent[0] + bucket.windowMs - now) / 1000));
+    return {
+      decision: "THROTTLE",
+      reason: `rate_limit_${apiOp}_exceeded`,
+      retryAfterSeconds: retryAfter
+    };
+  }
+
+  recent.push(now);
+  rateLimitCache.set(key, recent);
+  return base;
+}
+
 export function classify(
+  text: string,
+  rules: Rules,
+  session: StrategySession | null,
+  pendingStep: PendingStep | null,
+  event: any
+): Decision {
+  const base = classifyBase(text, rules, session, pendingStep, event);
+  return applyRateLimit(base, rules, pendingStep, event);
+}
+
+function classifyBase(
   text: string,
   rules: Rules,
   session: StrategySession | null,
@@ -341,6 +430,12 @@ export function classify(
   return { decision: "ALLOW", reason: "clear_trade_request" };
 }
 
+// Test-only: clear the in-memory sliding-window state between test cases so
+// per-process accumulation does not leak across tests.
+export function __resetRateLimitState(): void {
+  rateLimitCache.clear();
+}
+
 export {
   loadRules,
   insideApprovedBoundary,
@@ -349,7 +444,7 @@ export {
   isDuplicateExecution,
   buildGuardrailMessage
 };
-export type { Rules, StrategySession, PendingStep, Decision, DecisionCode };
+export type { Rules, RateBucket, StrategySession, PendingStep, Decision, DecisionCode };
 
 function buildGuardrailMessage(result: Decision): string {
   switch (result.decision) {
@@ -367,6 +462,11 @@ function buildGuardrailMessage(result: Decision): string {
       return "Guardrail: Runtime anomaly or duplicate execution suspected. Pause session safely and await operator confirmation.";
     case "REMIND":
       return "Guardrail: Active strategy reminder — surface a concise summary of running sessions and open positions before continuing.";
+    case "THROTTLE": {
+      const op = result.reason.replace(/^rate_limit_/, "").replace(/_exceeded$/, "");
+      const wait = result.retryAfterSeconds ?? 1;
+      return `Guardrail: Request rate for '${op}' is approaching the BitoPro official API limit. Wait ${wait}s before sending the next call to avoid a 429.`;
+    }
     default:
       return "Guardrail: Normal flow allowed. Still require standard summary and explicit confirmation where applicable.";
   }
@@ -444,7 +544,7 @@ export default async function handler(event: any): Promise<void> {
 
   const shouldAudit =
     STRICT_MODE ||
-    ["BLOCK", "ESCALATE", "APPROVE_SESSION", "PAUSE", "ALLOW_IN_SESSION"].includes(result.decision);
+    ["BLOCK", "ESCALATE", "APPROVE_SESSION", "PAUSE", "ALLOW_IN_SESSION", "THROTTLE"].includes(result.decision);
 
   if (shouldAudit) {
     const ok = await appendAudit(event, result, text);

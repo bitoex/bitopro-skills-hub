@@ -1,0 +1,16 @@
+{
+  "_source": "BitoPro official API rate limits — see skills/bitopro/spot/references/authentication.md and endpoints.md. Update these numbers if BitoPro changes its published limits.",
+  "_note": "windowMs: 60000 = per minute, 1000 = per second. The guard trips at floor(limit * BITOPRO_GUARD_RATE_LIMIT_FACTOR) to stay under the server limit before a real 429.",
+  "buckets": {
+    "create_order": { "limit": 1200, "windowMs": 60000 },
+    "create_batch_orders": { "limit": 90, "windowMs": 60000 },
+    "cancel_order": { "limit": 900, "windowMs": 60000 },
+    "cancel_batch_orders": { "limit": 2, "windowMs": 1000 },
+    "cancel_all_orders": { "limit": 1, "windowMs": 1000 },
+    "replace_order": { "limit": 2, "windowMs": 1000 },
+    "get_open_orders": { "limit": 5, "windowMs": 1000 },
+    "create_withdraw": { "limit": 60, "windowMs": 60000 },
+    "private_generic": { "limit": 600, "windowMs": 60000 },
+    "public_generic": { "limit": 600, "windowMs": 60000 }
+  }
+}
