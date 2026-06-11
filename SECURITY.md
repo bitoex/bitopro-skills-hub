@@ -64,14 +64,36 @@ Skills are **NOT** distributed via the public npm registry. Any package
 matching `bitopro-*` (without the `@bitopro/` scope) on public npm is
 **unofficial** and may be malicious — **do not install it**.
 
-The `@bitopro/trade-guard` hook package on npm is published exclusively from
-this repository under our reserved npm organization.
+> **Never run `npm install bitopro-spot` / `bitopro-market-intel` /
+> `bitopro-trade-guard` (or any other unscoped `bitopro-*` name).** Install
+> skills only with `npx clawhub install <skill-name>` or `git clone` from
+> this repository.
 
-The unscoped name `bitopro-trade-guard` on public npm is **not maintained by
-us** — any version that has appeared under that unscoped name was unofficial
-and may be malicious. Do not install a package matching the unscoped name;
-use only `@bitopro/trade-guard` (with the `@bitopro/` scope) if you need to
-reference the hook from npm at all.
+### The only official npm package
+
+The single package we publish to npm is the hook **`@bitopro/trade-guard`**
+(with the `@bitopro/` scope), published from this repository under our
+reserved npm organization. If you ever need to reference the hook from npm,
+use the scoped name **only**.
+
+### Known unofficial / squatted package names
+
+The skill names are **import-by-name identifiers**, and the unscoped forms
+were unclaimed on public npm — a classic dependency-confusion exposure
+(CWE-427 / CWE-829). The following unscoped names are **not ours**; treat any
+package published under them as untrusted:
+
+| Unscoped name (public npm) | Status (as of 2026-06-11) |
+|---|---|
+| `bitopro-spot` | **Squatted by a third party** — registered 2026-06-06 as a security-research PoC carrying an `install` lifecycle script. Not maintained by BitoPro. |
+| `bitopro-market-intel` | **Squatted by a third party** — same disclosure, 2026-06-06. Not maintained by BitoPro. |
+| `bitopro-trade-guard` | Tombstoned (all versions unpublished). Previously abused; superseded by the scoped `@bitopro/trade-guard`. |
+| `bitopro-ai-trade`, other `bitopro-*` | Unclaimed — reserve defensively; do not trust if published by anyone else. |
+
+A real attacker publishing under these names could ship a malicious
+`preinstall` / `postinstall` script that steals `BITOPRO_API_KEY` /
+`BITOPRO_API_SECRET` or achieves host code execution on anyone who installs
+them. **Do not install unscoped `bitopro-*` packages.**
 
 ## Coordinated Disclosure Process
 
@@ -90,7 +112,9 @@ We thank the following researchers for responsibly disclosed vulnerabilities:
 
 <!-- Add credits here as disclosures complete -->
 
-- _Listings coming soon._
+- **2026-06** — Dependency-confusion exposure on unscoped skill package names
+  (`bitopro-spot`, `bitopro-market-intel`); CWE-427 / CWE-829. Reported with a
+  non-destructive proof-of-concept. _Researcher credit pending consent._
 
 ## Bug Bounty
 

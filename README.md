@@ -27,6 +27,12 @@ Clone and point your agent to the skill directory:
 git clone https://github.com/bitoex/bitopro-skills-hub.git
 ```
 
+> ⚠️ **Install only via ClawHub or `git clone` — never from npm.** These skills
+> are **not** published to the public npm registry. Unscoped packages such as
+> `bitopro-spot`, `bitopro-market-intel`, or `bitopro-trade-guard` on npm are
+> **not ours** and may be malicious (see [SECURITY.md](./SECURITY.md)). The
+> only package we publish to npm is the scoped hook `@bitopro/trade-guard`.
+
 ### Configuration
 
 Set the following environment variables (required for private endpoints):
@@ -68,6 +74,9 @@ This allows users and operators to distinguish AI-executed trades from manual on
 - API secrets are never displayed in agent output
 - All order operations require explicit user confirmation before execution
 - Sensitive environment variables are declared in SKILL.md frontmatter with `sensitive: true`
+- **Supply chain:** skills ship via ClawHub / `git clone` only; the sole npm
+  package is the scoped `@bitopro/trade-guard`. Unscoped `bitopro-*` packages
+  on npm are not ours. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
 
 ## License
 
