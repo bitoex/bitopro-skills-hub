@@ -55,45 +55,59 @@ Response SLA:
 
 ## Distribution Notice (Important)
 
-This project's skills are distributed via:
+Install these skills by **cloning this repository** and pointing your agent at
+`skills/bitopro/<skill-name>/`:
 
-- `git clone https://github.com/bitoex/bitopro-skills-hub.git`
-- `npx clawhub install <skill-name>`
+```bash
+git clone https://github.com/bitoex/bitopro-skills-hub.git
+```
 
-Skills are **NOT** distributed via the public npm registry. Any package
-matching `bitopro-*` (without the `@bitopro/` scope) on public npm is
-**unofficial** and may be malicious — **do not install it**.
+The skills (`bitopro-spot`, `bitopro-market-intel`) are **NOT** published to
+the public npm registry. As of 2026-06, third parties have also claimed the
+ClawHub slug `bitopro-spot` and the unscoped npm names `bitopro-spot` /
+`bitopro-market-intel`.
 
-> **Never run `npm install bitopro-spot` / `bitopro-market-intel` /
-> `bitopro-trade-guard` (or any other unscoped `bitopro-*` name).** Install
-> skills only with `npx clawhub install <skill-name>` or `git clone` from
-> this repository.
+> ⚠️ **Until those names are reclaimed, do not run
+> `npx clawhub install bitopro-spot` or `npm i bitopro-*`** — they resolve to
+> third-party content. Install via `git clone` from this repository.
 
-### The only official npm package
+### Our official npm packages
 
-The single package we publish to npm is the hook **`@bitopro/trade-guard`**
-(with the `@bitopro/` scope), published from this repository under our
-reserved npm organization. If you ever need to reference the hook from npm,
-use the scoped name **only**.
+BitoPro publishes to npm from the `bitoex` account, under the `@bitopro` and
+`@bitoex` scopes (both controlled by us — a scoped package cannot be published
+to either scope by anyone outside our org). As of 2026-06 our official npm
+packages are:
 
-### Known unofficial / squatted package names
+| Package | Scope | Role |
+|---|---|---|
+| `@bitopro/trade-guard` | scoped | trade-guard hook (this repo) |
+| `@bitoex/ccxt` | scoped | BitoPro CCXT fork |
+| `bitopro-api-node` | unscoped | official BitoPro Node.js SDK |
 
-The skill names are **import-by-name identifiers**, and the unscoped forms
-were unclaimed on public npm — a classic dependency-confusion exposure
-(CWE-427 / CWE-829). The following unscoped names are **not ours**; treat any
-package published under them as untrusted:
+Before installing any `bitopro-*` / `@bito*` package, **verify the publisher is
+the `bitoex` npm account.** Do not assume every unscoped `bitopro-*` name is
+ours (it is not) — and do not assume every unscoped `bitopro-*` name is hostile
+either (`bitopro-api-node` is genuinely ours). Verify the publisher.
 
-| Unscoped name (public npm) | Status (as of 2026-06-11) |
-|---|---|
-| `bitopro-spot` | **Squatted by a third party** — registered 2026-06-06 as a security-research PoC carrying an `install` lifecycle script. Not maintained by BitoPro. |
-| `bitopro-market-intel` | **Squatted by a third party** — same disclosure, 2026-06-06. Not maintained by BitoPro. |
-| `bitopro-trade-guard` | Tombstoned (all versions unpublished). Previously abused; superseded by the scoped `@bitopro/trade-guard`. |
-| `bitopro-ai-trade`, other `bitopro-*` | Unclaimed — reserve defensively; do not trust if published by anyone else. |
+### Known unofficial / squatted names
 
-A real attacker publishing under these names could ship a malicious
-`preinstall` / `postinstall` script that steals `BITOPRO_API_KEY` /
-`BITOPRO_API_SECRET` or achieves host code execution on anyone who installs
-them. **Do not install unscoped `bitopro-*` packages.**
+These names are published by third parties (security-research PoCs as of
+2026-06) and are **not maintained by BitoPro** — a dependency-confusion /
+slug-squatting exposure (CWE-427 / CWE-829):
+
+| Name | Channel | Status (2026-06-11) |
+|---|---|---|
+| `bitopro-spot` | **ClawHub** | Squatted by a third party; the README install command currently resolves here until reclaimed |
+| `bitopro-spot` | npm (unscoped) | Squatted by a third-party PoC (2026-06-06) |
+| `bitopro-market-intel` | npm (unscoped) | Squatted by a third-party PoC (2026-06-06) |
+| `bitopro-trade-guard` | npm (unscoped) | Tombstoned; superseded by scoped `@bitopro/trade-guard` |
+| `bitopro-ai-trade`, other `bitopro-*` | npm / ClawHub | Unclaimed — reserve defensively |
+
+A malicious version under any of these could ship a `preinstall` /
+`postinstall` that steals `BITOPRO_API_KEY` / `BITOPRO_API_SECRET` or runs host
+code, or (for a ClawHub skill) declare those credentials as `required` to
+harvest them during install. **Install skills only by `git clone` from this
+repository until the names are reclaimed.**
 
 ## Coordinated Disclosure Process
 

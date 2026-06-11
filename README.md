@@ -13,25 +13,20 @@ Built for [ClawHub](https://clawhub.ai/) and compatible with Claude Code / OpenC
 
 ## Quick Start
 
-### Install via ClawHub
+> ⚠️ **Security notice (2026-06):** third parties have published unofficial
+> packages/skills under our names on **ClawHub** (`bitopro-spot`) and on **npm**
+> (`bitopro-spot`, `bitopro-market-intel`). **Until we reclaim those names,
+> install only by cloning this repository.** Do **not** run
+> `npx clawhub install bitopro-spot` or `npm i bitopro-*` — they currently
+> resolve to third-party content. See [SECURITY.md](./SECURITY.md).
 
-```bash
-npx clawhub install bitopro-spot
-```
-
-### Manual Installation
-
-Clone and point your agent to the skill directory:
+### Install (clone this repository)
 
 ```bash
 git clone https://github.com/bitoex/bitopro-skills-hub.git
 ```
 
-> ⚠️ **Install only via ClawHub or `git clone` — never from npm.** These skills
-> are **not** published to the public npm registry. Unscoped packages such as
-> `bitopro-spot`, `bitopro-market-intel`, or `bitopro-trade-guard` on npm are
-> **not ours** and may be malicious (see [SECURITY.md](./SECURITY.md)). The
-> only package we publish to npm is the scoped hook `@bitopro/trade-guard`.
+Then point your agent at the skill directory, e.g. `skills/bitopro/spot/`.
 
 ### Configuration
 
@@ -74,9 +69,11 @@ This allows users and operators to distinguish AI-executed trades from manual on
 - API secrets are never displayed in agent output
 - All order operations require explicit user confirmation before execution
 - Sensitive environment variables are declared in SKILL.md frontmatter with `sensitive: true`
-- **Supply chain:** skills ship via ClawHub / `git clone` only; the sole npm
-  package is the scoped `@bitopro/trade-guard`. Unscoped `bitopro-*` packages
-  on npm are not ours. To report a vulnerability, see [SECURITY.md](./SECURITY.md).
+- **Supply chain:** install skills by `git clone` from this repo (the ClawHub
+  and npm names for the skills have been squatted by third parties as of
+  2026-06). Verify the publisher is the `bitoex` npm account before installing
+  any `bitopro-*` / `@bito*` package. See [SECURITY.md](./SECURITY.md) for the
+  current list of official vs squatted names and how to report a vulnerability.
 
 ## License
 
