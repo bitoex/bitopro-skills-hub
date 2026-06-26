@@ -40,6 +40,14 @@ export BITOPRO_EMAIL="your_registered_email"
 
 > API credentials can be generated from [BitoPro Dashboard → API Management](https://www.bitopro.com/api).
 
+Run private endpoints only in a trusted, patched agent runtime. Do not export
+`BITOPRO_API_KEY`, `BITOPRO_API_SECRET`, or `BITOPRO_EMAIL` into an agent
+gateway until its runtime administration, external tool configuration, hook
+installation, and hook context controls have been reviewed. If runtime patch
+status cannot be verified, use public-only mode. If the runtime is trusted but
+hook provenance cannot be verified, require explicit confirmation for every
+private action.
+
 ## Skill Structure
 
 Each skill follows the [ClawHub standard](https://clawhub.ai/tdavis009/clawhub-skill-guide):
@@ -69,6 +77,10 @@ This allows users and operators to distinguish AI-executed trades from manual on
 - API secrets are never displayed in agent output
 - All order operations require explicit user confirmation before execution
 - Sensitive environment variables are declared in SKILL.md frontmatter with `sensitive: true`
+- Session-aware fast paths require a trusted runtime and a verified
+  `bitopro-trade-guard` hook. Unknown hook source, unpinned npm install,
+  or failed hook loading must fall back to explicit per-order confirmation.
+  Unknown or unreviewed runtime security status must use public-only mode.
 - **Supply chain:** install skills by `git clone` from this repo (the ClawHub
   and npm names for the skills have been squatted by third parties as of
   2026-06). Verify the publisher is the `bitoex` npm account before installing

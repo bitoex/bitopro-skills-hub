@@ -22,7 +22,7 @@ Response SLA:
 
 | Severity | Examples | Target Remediation |
 |---|---|---|
-| Critical | Trading API key leak, order execution bypass, supply-chain RCE | 24 hours |
+| Critical | Trading API key leak, order execution bypass, high-impact supply-chain compromise | 24 hours |
 | High | Authentication bypass, unauthorized order placement, brand impersonation on package registries | 7 days |
 | Medium | Information disclosure, denial-of-service, weak audit logging | 30 days |
 | Low | Hardening suggestions, documentation gaps | Best effort |
@@ -47,11 +47,14 @@ Response SLA:
 - The BitoPro exchange API itself — please use BitoPro's official
   support channels at <https://www.bitopro.com/>
 - Third-party platforms integrating our skills (ClawHub, OpenClaw runtime,
-  Claude Code) — please report to the respective platform
+  Claude Code) — please report to the respective platform. Runtime security or
+  tool-loading issues in those platforms are not code defects in this
+  repository, but they are security-relevant for any deployment that injects
+  BitoPro API credentials into that runtime.
 - Social engineering against BitoPro staff
 - Denial-of-service against BitoPro infrastructure
 - Issues in transitive dev dependencies that don't impact skill security posture
-- Unverified theoretical attacks without a working proof-of-concept
+- Unverified theoretical attacks without enough detail to reproduce
 
 ## Distribution Notice (Important)
 
@@ -73,10 +76,10 @@ ClawHub slug `bitopro-spot` and the unscoped npm names `bitopro-spot` /
 
 ### Our official npm packages
 
-BitoPro publishes to npm from the `bitoex` account, under the `@bitopro` and
-`@bitoex` scopes (both controlled by us — a scoped package cannot be published
-to either scope by anyone outside our org). As of 2026-06 our official npm
-packages are:
+BitoPro publishes npm packages from the `bitoex` account and related BitoPro
+maintainer accounts. For scoped packages, verify both the package maintainers and
+the scope/org ownership in npm before relying on the package in production. As
+of 2026-06 our official npm packages include:
 
 | Package | Scope | Role |
 |---|---|---|
@@ -91,23 +94,43 @@ either (`bitopro-api-node` is genuinely ours). Verify the publisher.
 
 ### Known unofficial / squatted names
 
-These names are published by third parties (security-research PoCs as of
-2026-06) and are **not maintained by BitoPro** — a dependency-confusion /
-slug-squatting exposure (CWE-427 / CWE-829):
+These names are published by third parties as of 2026-06 and are **not
+maintained by BitoPro** — a dependency-confusion / slug-squatting exposure
+(CWE-427 / CWE-829):
 
-| Name | Channel | Status (2026-06-11) |
+| Name | Channel | Status (2026-06) |
 |---|---|---|
-| `bitopro-spot` | **ClawHub** | Squatted by a third party; the README install command currently resolves here until reclaimed |
-| `bitopro-spot` | npm (unscoped) | Squatted by a third-party PoC (2026-06-06) |
-| `bitopro-market-intel` | npm (unscoped) | Squatted by a third-party PoC (2026-06-06) |
+| `bitopro-spot` | **ClawHub** | Not controlled by BitoPro until reclaimed |
+| `bitopro-spot` | npm (unscoped) | Not controlled by BitoPro until reclaimed |
+| `bitopro-market-intel` | npm (unscoped) | Not controlled by BitoPro until reclaimed |
 | `bitopro-trade-guard` | npm (unscoped) | Tombstoned; superseded by scoped `@bitopro/trade-guard` |
 | `bitopro-ai-trade`, other `bitopro-*` | npm / ClawHub | Unclaimed — reserve defensively |
 
-A malicious version under any of these could ship a `preinstall` /
-`postinstall` that steals `BITOPRO_API_KEY` / `BITOPRO_API_SECRET` or runs host
-code, or (for a ClawHub skill) declare those credentials as `required` to
-harvest them during install. **Install skills only by `git clone` from this
-repository until the names are reclaimed.**
+Content under uncontrolled names can expose credentials or execute untrusted
+code. **Install skills only by `git clone` from this repository until the names
+are reclaimed.**
+
+## Runtime Platform Requirements
+
+This repository contains skill definitions and the `bitopro-trade-guard` hook;
+it does not contain the agent runtime, registry service, external tool launcher,
+or platform policy engine. Findings in those components must be fixed in the
+respective platform, but they affect BitoPro deployments when credentials are
+present in the same process.
+
+Before enabling private trading or account tools in an agent runtime, operators
+must verify:
+
+| Component | Required status before private trading |
+|---|---|
+| Skill installation | Untrusted skills are disabled or reviewed before use |
+| Hook installation | Hook source, package owner, exact version, and integrity are verified |
+| Runtime administration | Admin APIs are access-controlled, audited, and not exposed to untrusted clients |
+| External tools | Command-spawning integrations are disabled unless explicitly trusted and isolated |
+
+If any required status is unknown, do not place BitoPro API credentials in that
+runtime. Use public-only tools, a local audited checkout, or a deployment wrapper
+that enforces explicit confirmation on every private order and withdrawal.
 
 ## Coordinated Disclosure Process
 
@@ -126,9 +149,7 @@ We thank the following researchers for responsibly disclosed vulnerabilities:
 
 <!-- Add credits here as disclosures complete -->
 
-- **2026-06** — Dependency-confusion exposure on unscoped skill package names
-  (`bitopro-spot`, `bitopro-market-intel`); CWE-427 / CWE-829. Reported with a
-  non-destructive proof-of-concept. _Researcher credit pending consent._
+- _Listings coming soon._
 
 ## Bug Bounty
 

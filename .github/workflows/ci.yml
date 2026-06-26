@@ -18,8 +18,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: bitopro-trade-guard/package-lock.json
 
-      # 關鍵：用 npm ci（從 lockfile 還原）+ --ignore-scripts（阻擋 preinstall 惡意腳本）
-      # 即使供應鏈被劫持，install 階段也不會執行任何上游的 pre/post 腳本
+      # Use the lockfile and disable dependency lifecycle scripts during CI install.
+      # This keeps install behavior reproducible and limited to dependency extraction.
       - name: Install dependencies
         run: npm ci --ignore-scripts
 
